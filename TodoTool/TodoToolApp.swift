@@ -9,6 +9,7 @@ struct TodoToolApp: App {
         WindowGroup {
             ContentView()
         }
-        .windowResizability(.contentSize)
+        .windowResizability(.contentMinSize)
+        .defaultSize(width: 400, height: 600)
     }
 }
