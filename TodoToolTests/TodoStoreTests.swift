@@ -244,6 +244,39 @@ final class TodoStoreTests: XCTestCase {
         XCTAssertEqual(store.todos.first?.title, "原标题", "空标题更新应被拒绝")
     }
     
+    /// 测试更新为超长标题被拒绝
+    func testUpdateOverlongTitleRejected() {
+        let store = TodoStore(dataDirectory: testDirectory)
+        store.add(title: "原标题")
+        let id = store.todos.first!.id
+        let longTitle = String(repeating: "a", count: 201)
+        
+        store.update(id: id, title: longTitle)
+        
+        XCTAssertEqual(store.todos.first?.title, "原标题", "超过 200 字符的标题更新应被拒绝")
+    }
+    
+    /// 测试切换不存在的 ID 不崩溃
+    func testToggleNonExistentId() {
+        let store = TodoStore(dataDirectory: testDirectory)
+        store.add(title: "任务")
+        let originalCompleted = store.todos.first!.isCompleted
+        
+        store.toggle(id: UUID()) // 不存在的 ID
+        
+        XCTAssertEqual(store.todos.first?.isCompleted, originalCompleted, "切换不存在的 ID 不应影响现有数据")
+    }
+    
+    /// 测试更新不存在的 ID 不崩溃
+    func testUpdateNonExistentId() {
+        let store = TodoStore(dataDirectory: testDirectory)
+        store.add(title: "原标题")
+        
+        store.update(id: UUID(), title: "新标题") // 不存在的 ID
+        
+        XCTAssertEqual(store.todos.first?.title, "原标题", "更新不存在的 ID 不应影响现有数据")
+    }
+    
     // MARK: - 持久化验证
     
     /// 测试数据持久化后可重新加载
