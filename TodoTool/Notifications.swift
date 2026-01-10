@@ -45,6 +45,18 @@ extension Notification.Name {
 
     /// 导入数据请求通知（携带 ImportRequest 作为 userInfo）
     static let importDataRequest = Notification.Name("com.todotool.importDataRequest")
+
+    /// 撤销操作快捷键通知
+    static let undoAction = Notification.Name("com.todotool.undoAction")
+
+    /// 重做操作快捷键通知
+    static let redoAction = Notification.Name("com.todotool.redoAction")
+
+    /// 清除已完成任务通知
+    static let clearCompleted = Notification.Name("com.todotool.clearCompleted")
+
+    /// 管理标签通知
+    static let manageTags = Notification.Name("com.todotool.manageTags")
 }
 
 // MARK: - 导入请求数据

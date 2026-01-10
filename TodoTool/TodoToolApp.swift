@@ -42,10 +42,28 @@ struct TodoToolApp: App {
         AppearanceMode(rawValue: appearanceMode) ?? .system
     }
 
+    /// 应用外观设置到整个应用
+    private func applyAppearance(_ mode: AppearanceMode) {
+        switch mode {
+        case .system:
+            NSApp.appearance = nil  // 跟随系统
+        case .light:
+            NSApp.appearance = NSAppearance(named: .aqua)
+        case .dark:
+            NSApp.appearance = NSAppearance(named: .darkAqua)
+        }
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .preferredColorScheme(currentMode.colorScheme)
+                .onAppear {
+                    // 应用启动时设置外观
+                    applyAppearance(currentMode)
+                }
+                .onChange(of: appearanceMode) { _, newValue in
+                    applyAppearance(AppearanceMode(rawValue: newValue) ?? .system)
+                }
         }
         .windowResizability(.contentMinSize)
         .defaultSize(width: 400, height: 600)
@@ -71,6 +89,19 @@ struct TodoToolApp: App {
                     exportData()
                 }
                 .keyboardShortcut("e", modifiers: .command)
+            }
+
+            // 撤销/重做菜单（替换系统默认）
+            CommandGroup(replacing: .undoRedo) {
+                Button("撤销") {
+                    NotificationCenter.default.post(name: .undoAction, object: nil)
+                }
+                .keyboardShortcut("z", modifiers: .command)
+
+                Button("重做") {
+                    NotificationCenter.default.post(name: .redoAction, object: nil)
+                }
+                .keyboardShortcut("z", modifiers: [.command, .shift])
             }
 
             // 自定义编辑菜单
@@ -102,22 +133,36 @@ struct TodoToolApp: App {
                         NotificationCenter.default.post(name: .setPriority, object: Priority.none)
                     }
                     .keyboardShortcut("0", modifiers: .command)
-                    
+
                     Button("低优先级") {
                         NotificationCenter.default.post(name: .setPriority, object: Priority.low)
                     }
                     .keyboardShortcut("1", modifiers: .command)
-                    
+
                     Button("中优先级") {
                         NotificationCenter.default.post(name: .setPriority, object: Priority.medium)
                     }
                     .keyboardShortcut("2", modifiers: .command)
-                    
+
                     Button("高优先级") {
                         NotificationCenter.default.post(name: .setPriority, object: Priority.high)
                     }
                     .keyboardShortcut("3", modifiers: .command)
                 }
+
+                Divider()
+
+                Button("清除已完成") {
+                    NotificationCenter.default.post(name: .clearCompleted, object: nil)
+                }
+                .keyboardShortcut("k", modifiers: [.command, .shift])
+
+                Divider()
+
+                Button("管理标签…") {
+                    NotificationCenter.default.post(name: .manageTags, object: nil)
+                }
+                .keyboardShortcut("t", modifiers: [.command, .shift])
             }
 
             // 视图菜单：外观设置

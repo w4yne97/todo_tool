@@ -52,12 +52,18 @@ struct ContentView: View {
     /// 搜索文本
     @State private var searchText = ""
     @State private var priorityFilter: PriorityFilter = .all
+    @State private var tagFilter: UUID? = nil
 
-    /// 选中的任务 ID（用于快捷键操作）
-    @State private var selectedTodoId: UUID?
+    /// 选中的任务 ID 集合（支持多选）
+    @State private var selectedTodoIds: Set<UUID> = []
 
     /// 正在编辑的任务 ID
     @State private var editingTodoId: UUID?
+
+    /// 标签管理弹窗状态
+    @State private var isManagingTags = false
+    @State private var newTagName = ""
+    @State private var newTagColor: TagColor = .blue
 
     /// List 焦点状态
     @FocusState private var isListFocused: Bool
@@ -67,7 +73,7 @@ struct ContentView: View {
 
     /// 过滤后的任务列表
     private var filteredTodos: [Todo] {
-        todoStore.filteredAndSortedTodos(searchText: searchText, priorityFilter: priorityFilter.priority)
+        todoStore.filteredAndSortedTodos(searchText: searchText, priorityFilter: priorityFilter.priority, tagFilter: tagFilter)
     }
 
 
@@ -83,7 +89,27 @@ struct ContentView: View {
     }
 
     private var hasActiveFilters: Bool {
-        !searchText.isEmpty || priorityFilter != .all
+        !searchText.isEmpty || priorityFilter != .all || tagFilter != nil
+    }
+
+    // MARK: - 统计数据
+
+    /// 待办任务总数
+    private var totalPending: Int {
+        todoStore.todos.filter { !$0.isCompleted }.count
+    }
+
+    /// 已完成任务总数
+    private var totalCompleted: Int {
+        todoStore.todos.filter { $0.isCompleted }.count
+    }
+
+    /// 今日完成数量
+    private var completedToday: Int {
+        todoStore.todos.filter { todo in
+            guard todo.isCompleted, let completedAt = todo.completedAt else { return false }
+            return Calendar.current.isDateInToday(completedAt)
+        }.count
     }
 
     var body: some View {
@@ -108,12 +134,21 @@ struct ContentView: View {
                 taskListView
                     .transition(.opacity)
             }
+
+            // 底部统计面板
+            if !todoStore.todos.isEmpty {
+                Divider()
+                statsBarView
+            }
         }
         .animation(.easeInOut(duration: 0.3), value: todoStore.todos.isEmpty)
         .animation(.easeInOut(duration: 0.2), value: filteredTodos.count)
         .frame(minWidth: 400, minHeight: 600)
         .sheet(isPresented: $isAddingTask) {
             addTaskSheet
+        }
+        .sheet(isPresented: $isManagingTags) {
+            tagManagementSheet
         }
         // 监听菜单快捷键通知
         .onReceive(NotificationCenter.default.publisher(for: .addTask)) { _ in
@@ -139,11 +174,113 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .importDataRequest)) { notification in
             handleImportRequest(notification)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .undoAction)) { _ in
+            undoAnimated()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .redoAction)) { _ in
+            redoAnimated()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .clearCompleted)) { _ in
+            clearCompletedAnimated()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .manageTags)) { _ in
+            isManagingTags = true
+        }
         // Enter 进入编辑模式（⌘+Enter 切换完成状态由菜单命令处理）
         .onKeyPress(.return) { handleEditShortcut() }
     }
 
     // MARK: - 子视图
+
+    /// 底部统计面板
+    private var statsBarView: some View {
+        HStack(spacing: 16) {
+            // 多选时显示批量操作按钮
+            if selectedTodoIds.count > 1 {
+                batchActionsView
+            } else {
+                // 待办数量
+                Label("\(totalPending)", systemImage: "circle")
+                    .foregroundColor(.primary)
+                    .help("待办任务")
+
+                // 已完成数量
+                Label("\(totalCompleted)", systemImage: "checkmark.circle")
+                    .foregroundColor(.green)
+                    .help("已完成任务")
+
+                // 今日完成数量
+                Label("\(completedToday)", systemImage: "calendar")
+                    .foregroundColor(.blue)
+                    .help("今日完成")
+            }
+
+            Spacer()
+
+            // 撤销/重做按钮
+            HStack(spacing: 8) {
+                Button(action: undoAnimated) {
+                    Image(systemName: "arrow.uturn.backward")
+                        .foregroundColor(todoStore.canUndo ? .primary : .secondary.opacity(0.5))
+                }
+                .buttonStyle(.plain)
+                .disabled(!todoStore.canUndo)
+                .help("撤销 (⌘Z)")
+
+                Button(action: redoAnimated) {
+                    Image(systemName: "arrow.uturn.forward")
+                        .foregroundColor(todoStore.canRedo ? .primary : .secondary.opacity(0.5))
+                }
+                .buttonStyle(.plain)
+                .disabled(!todoStore.canRedo)
+                .help("重做 (⌘⇧Z)")
+            }
+        }
+        .font(.caption)
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .background(Color.primary.opacity(0.03))
+        .animation(.easeInOut(duration: 0.2), value: selectedTodoIds.count > 1)
+    }
+
+    /// 批量操作按钮组
+    private var batchActionsView: some View {
+        HStack(spacing: 12) {
+            Text("已选 \(selectedTodoIds.count) 项")
+                .foregroundColor(.secondary)
+
+            Divider()
+                .frame(height: 14)
+
+            // 批量完成/取消完成
+            Button {
+                toggleSelectedTodoAnimated()
+            } label: {
+                Image(systemName: "checkmark.circle")
+            }
+            .buttonStyle(.plain)
+            .help("切换完成状态 (⌘⏎)")
+
+            // 批量删除
+            Button {
+                deleteSelectedTodoAnimated()
+            } label: {
+                Image(systemName: "trash")
+                    .foregroundColor(.red)
+            }
+            .buttonStyle(.plain)
+            .help("删除选中 (⌘⌫)")
+
+            // 取消选择
+            Button {
+                selectedTodoIds = []
+            } label: {
+                Image(systemName: "xmark.circle")
+            }
+            .buttonStyle(.plain)
+            .help("取消选择")
+        }
+    }
 
     /// 顶部标题栏
     private var headerView: some View {
@@ -194,6 +331,14 @@ struct ContentView: View {
                 .frame(height: 16)
 
             priorityFilterMenu
+
+            // 标签过滤菜单（仅当有标签时显示）
+            if !todoStore.tags.isEmpty {
+                Divider()
+                    .frame(height: 16)
+
+                tagFilterMenu
+            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -250,6 +395,66 @@ struct ContentView: View {
         .menuStyle(.borderlessButton)
     }
 
+    /// 标签过滤菜单
+    private var tagFilterMenu: some View {
+        Menu {
+            Button {
+                tagFilter = nil
+            } label: {
+                HStack {
+                    Text("全部标签")
+                    if tagFilter == nil {
+                        Spacer()
+                        Image(systemName: "checkmark")
+                    }
+                }
+            }
+
+            Divider()
+
+            ForEach(todoStore.tags) { tag in
+                Button {
+                    tagFilter = tag.id
+                } label: {
+                    HStack(spacing: 8) {
+                        Circle()
+                            .fill(tag.color.color)
+                            .frame(width: 8, height: 8)
+                        Text(tag.name)
+                        if tagFilter == tag.id {
+                            Spacer()
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                if let tagId = tagFilter, let tag = todoStore.tag(for: tagId) {
+                    Circle()
+                        .fill(tag.color.color)
+                        .frame(width: 8, height: 8)
+                    Text(tag.name)
+                        .font(.subheadline)
+                        .foregroundColor(.primary)
+                } else {
+                    Image(systemName: "tag")
+                        .foregroundColor(.secondary)
+                    Text("标签")
+                        .font(.subheadline)
+                        .foregroundColor(.primary)
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(
+                Capsule()
+                    .fill(Color.primary.opacity(tagFilter == nil ? 0.06 : 0.12))
+            )
+        }
+        .menuStyle(.borderlessButton)
+    }
+
     /// 搜索无结果视图
     private var noResultsView: some View {
         VStack(spacing: 12) {
@@ -281,7 +486,7 @@ struct ContentView: View {
 
     /// 任务列表
     private var taskListView: some View {
-        List(selection: $selectedTodoId) {
+        List(selection: $selectedTodoIds) {
             // 待办分组
             if !pendingTodos.isEmpty {
                 Section {
@@ -298,16 +503,19 @@ struct ContentView: View {
                             onEditEnd: {
                                 // 编辑结束后恢复 List 焦点和选中状态
                                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                                    selectedTodoId = todo.id
+                                    selectedTodoIds = [todo.id]
                                     isListFocused = true
                                 }
                             },
-                            onSelect: {
-                                // 单击选中
-                                selectedTodoId = todo.id
-                            },
                             onSetPriority: { priority in
                                 setTodoPriorityAnimated(id: todo.id, priority: priority)
+                            },
+                            onSetDueDate: { dueDate in
+                                setTodoDueDateAnimated(id: todo.id, dueDate: dueDate)
+                            },
+                            availableTags: todoStore.tags,
+                            onToggleTag: { tagId in
+                                toggleTagAnimated(todoId: todo.id, tagId: tagId)
                             },
                             isEditingExternally: editingBinding(for: todo.id)
                         )
@@ -315,6 +523,9 @@ struct ContentView: View {
                     }
                     .onDelete { indexSet in
                         deleteTodosAnimated(from: pendingTodos, at: indexSet)
+                    }
+                    .onMove { source, destination in
+                        moveTodosAnimated(from: source, to: destination, inSection: pendingTodos)
                     }
                 } header: {
                     Text("待办 (\(pendingTodos.count))")
@@ -339,16 +550,19 @@ struct ContentView: View {
                             onEditEnd: {
                                 // 编辑结束后恢复 List 焦点和选中状态
                                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                                    selectedTodoId = todo.id
+                                    selectedTodoIds = [todo.id]
                                     isListFocused = true
                                 }
                             },
-                            onSelect: {
-                                // 单击选中
-                                selectedTodoId = todo.id
-                            },
                             onSetPriority: { priority in
                                 setTodoPriorityAnimated(id: todo.id, priority: priority)
+                            },
+                            onSetDueDate: { dueDate in
+                                setTodoDueDateAnimated(id: todo.id, dueDate: dueDate)
+                            },
+                            availableTags: todoStore.tags,
+                            onToggleTag: { tagId in
+                                toggleTagAnimated(todoId: todo.id, tagId: tagId)
                             },
                             isEditingExternally: editingBinding(for: todo.id)
                         )
@@ -356,6 +570,9 @@ struct ContentView: View {
                     }
                     .onDelete { indexSet in
                         deleteTodosAnimated(from: completedTodos, at: indexSet)
+                    }
+                    .onMove { source, destination in
+                        moveTodosAnimated(from: source, to: destination, inSection: completedTodos)
                     }
                 } header: {
                     Text("已完成 (\(completedTodos.count))")
@@ -365,6 +582,8 @@ struct ContentView: View {
             }
         }
         .listStyle(.inset)
+        .scrollContentBackground(.hidden)
+        .background(Color(NSColor.controlBackgroundColor))
         .focusable()
         .focused($isListFocused)
         .animation(.easeInOut(duration: 0.25), value: todoStore.todos)
@@ -430,6 +649,104 @@ struct ContentView: View {
         .frame(minWidth: 300)
     }
 
+    /// 标签管理弹窗
+    private var tagManagementSheet: some View {
+        VStack(spacing: 16) {
+            Text("管理标签")
+                .font(.headline)
+
+            // 现有标签列表
+            if todoStore.tags.isEmpty {
+                Text("暂无标签")
+                    .foregroundColor(.secondary)
+                    .padding(.vertical, 20)
+            } else {
+                ScrollView {
+                    VStack(spacing: 8) {
+                        ForEach(todoStore.tags) { tag in
+                            HStack(spacing: 12) {
+                                Circle()
+                                    .fill(tag.color.color)
+                                    .frame(width: 12, height: 12)
+
+                                Text(tag.name)
+                                    .foregroundColor(.primary)
+
+                                Spacer()
+
+                                // 删除按钮
+                                Button {
+                                    todoStore.deleteTag(id: tag.id)
+                                } label: {
+                                    Image(systemName: "trash")
+                                        .foregroundColor(.red)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(Color.primary.opacity(0.05))
+                            .cornerRadius(6)
+                        }
+                    }
+                }
+                .frame(maxHeight: 200)
+            }
+
+            Divider()
+
+            // 添加新标签
+            HStack(spacing: 12) {
+                TextField("新标签名称", text: $newTagName)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(minWidth: 150)
+
+                // 颜色选择
+                Menu {
+                    ForEach(TagColor.allCases, id: \.self) { color in
+                        Button {
+                            newTagColor = color
+                        } label: {
+                            HStack {
+                                Circle()
+                                    .fill(color.color)
+                                    .frame(width: 10, height: 10)
+                                Text(color.displayName)
+                                if newTagColor == color {
+                                    Spacer()
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+                    }
+                } label: {
+                    Circle()
+                        .fill(newTagColor.color)
+                        .frame(width: 16, height: 16)
+                        .padding(4)
+                        .background(Color.primary.opacity(0.1))
+                        .cornerRadius(4)
+                }
+                .menuStyle(.borderlessButton)
+
+                Button("添加") {
+                    guard !newTagName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+                    todoStore.addTag(name: newTagName, color: newTagColor)
+                    newTagName = ""
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(newTagName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+
+            Button("完成") {
+                isManagingTags = false
+            }
+            .keyboardShortcut(.defaultAction)
+        }
+        .padding(24)
+        .frame(minWidth: 350, minHeight: 300)
+    }
+
     // MARK: - 辅助方法
 
     /// 创建编辑状态 Binding
@@ -469,6 +786,7 @@ struct ContentView: View {
     private func clearFilters() {
         searchText = ""
         priorityFilter = .all
+        tagFilter = nil
         isSearchFocused = false
     }
 
@@ -584,55 +902,115 @@ struct ContentView: View {
 
     /// 删除选中的任务（⌘⌫ 快捷键，带动画）
     private func deleteSelectedTodoAnimated() {
-        guard let id = selectedTodoId else { return }
+        guard !selectedTodoIds.isEmpty else { return }
         withAnimation(.easeInOut(duration: 0.25)) {
-            todoStore.delete(id: id)
+            todoStore.deleteMultiple(ids: selectedTodoIds)
         }
-        selectedTodoId = nil
+        selectedTodoIds = []
     }
 
     /// 切换选中任务的完成状态（带动画）
     private func toggleSelectedTodoAnimated() {
-        guard let id = selectedTodoId else { return }
+        guard !selectedTodoIds.isEmpty else { return }
+        // 如果所有选中的都已完成，则标记为未完成；否则标记为已完成
+        let allCompleted = selectedTodoIds.allSatisfy { id in
+            todoStore.todos.first { $0.id == id }?.isCompleted ?? false
+        }
         withAnimation(.easeInOut(duration: 0.25)) {
-            todoStore.toggle(id: id)
+            todoStore.setCompleted(ids: selectedTodoIds, completed: !allCompleted)
         }
     }
 
-    /// 开始编辑选中的任务
+    /// 开始编辑选中的任务（仅单选时有效）
     private func startEditingSelectedTodo() {
-        guard let id = selectedTodoId else { return }
+        guard selectedTodoIds.count == 1, let id = selectedTodoIds.first else { return }
         editingTodoId = id
     }
 
-    /// 处理 Enter 快捷键 - 进入编辑模式
+    /// 处理 Enter 快捷键 - 进入编辑模式（仅单选时有效）
     private func handleEditShortcut() -> KeyPress.Result {
         // 如果正在编辑，不拦截（让 TextField 处理）
         guard editingTodoId == nil else { return .ignored }
-        guard let id = selectedTodoId else { return .ignored }
+        guard selectedTodoIds.count == 1, let id = selectedTodoIds.first else { return .ignored }
         editingTodoId = id
         return .handled
     }
 
     /// 处理 ⌘+Enter 快捷键 - 切换完成状态
     private func handleToggleShortcut() -> KeyPress.Result {
-        guard selectedTodoId != nil else { return .ignored }
+        guard !selectedTodoIds.isEmpty else { return .ignored }
         toggleSelectedTodoAnimated()
         return .handled
     }
-    
+
     /// 设置任务优先级（带动画）
     private func setTodoPriorityAnimated(id: UUID, priority: Priority) {
         withAnimation(.easeInOut(duration: 0.2)) {
             todoStore.setPriority(id: id, priority: priority)
         }
     }
-    
+
     /// 设置选中任务的优先级（⌘0/1/2/3 快捷键，带动画）
     private func setSelectedTodoPriorityAnimated(_ priority: Priority) {
-        guard let id = selectedTodoId else { return }
+        guard !selectedTodoIds.isEmpty else { return }
         withAnimation(.easeInOut(duration: 0.2)) {
-            todoStore.setPriority(id: id, priority: priority)
+            todoStore.setPriorityMultiple(ids: selectedTodoIds, priority: priority)
+        }
+    }
+
+    /// 设置任务到期日期（带动画）
+    private func setTodoDueDateAnimated(id: UUID, dueDate: Date?) {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            todoStore.setDueDate(id: id, dueDate: dueDate)
+        }
+    }
+
+    /// 切换任务标签（带动画）
+    private func toggleTagAnimated(todoId: UUID, tagId: UUID) {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            if let todo = todoStore.todos.first(where: { $0.id == todoId }),
+               todo.tagIds.contains(tagId) {
+                todoStore.removeTagFromTodo(todoId: todoId, tagId: tagId)
+            } else {
+                todoStore.addTagToTodo(todoId: todoId, tagId: tagId)
+            }
+        }
+    }
+
+    /// 移动任务到新位置（拖拽排序，带动画）
+    private func moveTodosAnimated(from source: IndexSet, to destination: Int, inSection sectionTodos: [Todo]) {
+        withAnimation(.easeInOut(duration: 0.25)) {
+            todoStore.move(from: source, to: destination, inSection: sectionTodos)
+        }
+    }
+
+    // MARK: - 撤销/重做
+
+    /// 撤销上一步操作（⌘Z 快捷键）
+    private func undoAnimated() {
+        guard todoStore.canUndo else { return }
+        withAnimation(.easeInOut(duration: 0.25)) {
+            todoStore.undo()
+        }
+    }
+
+    /// 重做已撤销的操作（⌘⇧Z 快捷键）
+    private func redoAnimated() {
+        guard todoStore.canRedo else { return }
+        withAnimation(.easeInOut(duration: 0.25)) {
+            todoStore.redo()
+        }
+    }
+
+    /// 清除所有已完成的任务（⌘⇧K 快捷键）
+    private func clearCompletedAnimated() {
+        guard totalCompleted > 0 else { return }
+        withAnimation(.easeInOut(duration: 0.25)) {
+            todoStore.clearCompleted()
+        }
+        // 清除可能选中的已完成任务
+        selectedTodoIds = selectedTodoIds.filter { id in
+            todoStore.todos.contains { $0.id == id }
         }
     }
 

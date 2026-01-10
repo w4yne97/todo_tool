@@ -57,37 +57,49 @@ struct Todo: Codable, Identifiable, Equatable {
     var isCompleted: Bool
     /// 优先级（默认无优先级）
     var priority: Priority
+    /// 关联的标签 ID 列表
+    var tagIds: [UUID]
     /// 创建时间（UTC）
     let createdAt: Date
     /// 完成时间（UTC，未完成时为 nil）
     var completedAt: Date?
+    /// 到期日期（UTC，可选）
+    var dueDate: Date?
+    /// 手动排序顺序（越小越靠前）
+    var sortOrder: Int
     /// 最近修改时间（UTC）
     var updatedAt: Date
-    
+
     /// 便捷初始化器，自动设置时间戳
     init(
         id: UUID = UUID(),
         title: String,
         isCompleted: Bool = false,
         priority: Priority = .none,
+        tagIds: [UUID] = [],
         createdAt: Date = Date(),
         completedAt: Date? = nil,
+        dueDate: Date? = nil,
+        sortOrder: Int = 0,
         updatedAt: Date? = nil
     ) {
         self.id = id
         self.title = title
         self.isCompleted = isCompleted
         self.priority = priority
+        self.tagIds = tagIds
         self.createdAt = createdAt
         self.completedAt = completedAt
+        self.dueDate = dueDate
+        self.sortOrder = sortOrder
         self.updatedAt = updatedAt ?? createdAt
     }
-    
-    /// 自定义 Codable 实现以支持向后兼容（旧数据无 priority 字段）
+
+    /// 自定义 Codable 实现以支持向后兼容（旧数据无 priority/dueDate/sortOrder/tagIds 字段）
     enum CodingKeys: String, CodingKey {
-        case id, title, isCompleted, priority, createdAt, completedAt, updatedAt
+        case id, title, isCompleted, priority, tagIds, createdAt, completedAt, dueDate, sortOrder, updatedAt
     }
-    
+
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(UUID.self, forKey: .id)
@@ -95,9 +107,30 @@ struct Todo: Codable, Identifiable, Equatable {
         isCompleted = try container.decode(Bool.self, forKey: .isCompleted)
         // 向后兼容：旧数据无 priority 字段时默认为 .none
         priority = try container.decodeIfPresent(Priority.self, forKey: .priority) ?? .none
+        // 向后兼容：旧数据无 tagIds 字段时默认为空数组
+        tagIds = try container.decodeIfPresent([UUID].self, forKey: .tagIds) ?? []
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         completedAt = try container.decodeIfPresent(Date.self, forKey: .completedAt)
+        // 向后兼容：旧数据无 dueDate 字段时默认为 nil
+        dueDate = try container.decodeIfPresent(Date.self, forKey: .dueDate)
+        // 向后兼容：旧数据无 sortOrder 字段时默认为 0
+        sortOrder = try container.decodeIfPresent(Int.self, forKey: .sortOrder) ?? 0
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+    }
+
+    // MARK: - 到期状态判断
+
+    /// 是否已过期（到期日期已过且未完成）
+    var isOverdue: Bool {
+        guard let dueDate = dueDate, !isCompleted else { return false }
+        return dueDate < Date()
+    }
+
+    /// 是否即将到期（24小时内到期且未完成）
+    var isDueSoon: Bool {
+        guard let dueDate = dueDate, !isCompleted, !isOverdue else { return false }
+        let hoursUntilDue = dueDate.timeIntervalSince(Date()) / 3600
+        return hoursUntilDue <= 24
     }
 }
 
