@@ -18,4 +18,7 @@ extension Notification.Name {
 
     /// 导出数据通知
     static let exportData = Notification.Name("com.todotool.exportData")
+
+    /// 聚焦搜索框快捷键通知
+    static let focusSearch = Notification.Name("com.todotool.focusSearch")
 }

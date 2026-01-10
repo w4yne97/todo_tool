@@ -1,6 +1,6 @@
 // ==================== TodoTool 应用入口 ====================
 // 极简 macOS Todo 应用 - 零依赖、本地优先
-// 菜单栏快捷键：⌘N 新建、⌘⌫ 删除、⌘E 导出
+// 菜单栏快捷键：⌘N 新建、⌘⌫ 删除、⌘E 导出、⌘F 搜索
 // 支持深色模式：视图 → 外观
 
 import SwiftUI
@@ -69,6 +69,13 @@ struct TodoToolApp: App {
 
             // 自定义编辑菜单
             CommandGroup(after: .pasteboard) {
+                Divider()
+
+                Button("搜索任务") {
+                    NotificationCenter.default.post(name: .focusSearch, object: nil)
+                }
+                .keyboardShortcut("f", modifiers: .command)
+
                 Divider()
 
                 Button("删除任务") {

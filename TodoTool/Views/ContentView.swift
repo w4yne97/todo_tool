@@ -1,7 +1,7 @@
 // ==================== 主界面视图 ====================
 // 任务列表、添加任务、空状态展示
-// 支持快捷键：⌘N 新建、⌘⌫ 删除、Enter 编辑、⌘Enter 切换完成、Esc 取消
-// 支持双击行内编辑、添加/删除/切换动画
+// 支持快捷键：⌘N 新建、⌘⌫ 删除、⌘F 搜索、Enter 编辑、⌘Enter 切换完成、Esc 取消
+// 支持双击行内编辑、添加/删除/切换动画、实时搜索过滤
 
 import SwiftUI
 
@@ -13,6 +13,9 @@ struct ContentView: View {
     @State private var isAddingTask = false
     @State private var newTaskTitle = ""
 
+    /// 搜索文本
+    @State private var searchText = ""
+
     /// 选中的任务 ID（用于快捷键操作）
     @State private var selectedTodoId: UUID?
 
@@ -22,14 +25,27 @@ struct ContentView: View {
     /// List 焦点状态
     @FocusState private var isListFocused: Bool
 
-    /// 待办任务（未完成）
-    private var pendingTodos: [Todo] {
-        todoStore.todos.filter { !$0.isCompleted }
+    /// 搜索框焦点状态
+    @FocusState private var isSearchFocused: Bool
+
+    /// 过滤后的任务列表
+    private var filteredTodos: [Todo] {
+        if searchText.isEmpty {
+            return todoStore.todos
+        }
+        return todoStore.todos.filter {
+            $0.title.localizedCaseInsensitiveContains(searchText)
+        }
     }
 
-    /// 已完成任务
+    /// 待办任务（未完成，已过滤）
+    private var pendingTodos: [Todo] {
+        filteredTodos.filter { !$0.isCompleted }
+    }
+
+    /// 已完成任务（已过滤）
     private var completedTodos: [Todo] {
-        todoStore.todos.filter { $0.isCompleted }
+        filteredTodos.filter { $0.isCompleted }
     }
 
     var body: some View {
@@ -37,18 +53,26 @@ struct ContentView: View {
             // 顶部标题栏
             headerView
 
+            // 搜索框
+            searchBarView
+
             Divider()
 
             // 主内容区 - 带过渡动画
             if todoStore.todos.isEmpty {
                 emptyStateView
                     .transition(.opacity.combined(with: .scale(scale: 0.95)))
+            } else if filteredTodos.isEmpty {
+                // 搜索无结果
+                noResultsView
+                    .transition(.opacity)
             } else {
                 taskListView
                     .transition(.opacity)
             }
         }
         .animation(.easeInOut(duration: 0.3), value: todoStore.todos.isEmpty)
+        .animation(.easeInOut(duration: 0.2), value: filteredTodos.count)
         .frame(minWidth: 400, minHeight: 600)
         .sheet(isPresented: $isAddingTask) {
             addTaskSheet
@@ -65,6 +89,9 @@ struct ContentView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .editTask)) { _ in
             startEditingSelectedTodo()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .focusSearch)) { _ in
+            focusSearchBar()
         }
         // Enter 进入编辑模式（⌘+Enter 切换完成状态由菜单命令处理）
         .onKeyPress(.return) { handleEditShortcut() }
@@ -89,6 +116,70 @@ struct ContentView: View {
             .foregroundColor(.accentColor)
         }
         .padding()
+    }
+
+    /// 搜索框
+    private var searchBarView: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .foregroundColor(.secondary)
+
+            TextField("搜索任务…", text: $searchText)
+                .textFieldStyle(.plain)
+                .focused($isSearchFocused)
+                .onExitCommand {
+                    // Esc 清空搜索并取消焦点
+                    searchText = ""
+                    isSearchFocused = false
+                    isListFocused = true
+                }
+
+            // 清除按钮
+            if !searchText.isEmpty {
+                Button(action: clearSearch) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+                .transition(.opacity)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color.primary.opacity(0.05))
+        .cornerRadius(8)
+        .padding(.horizontal)
+        .padding(.bottom, 8)
+        .animation(.easeInOut(duration: 0.15), value: searchText.isEmpty)
+    }
+
+    /// 搜索无结果视图
+    private var noResultsView: some View {
+        VStack(spacing: 12) {
+            Spacer()
+
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 40))
+                .foregroundColor(.secondary.opacity(0.5))
+
+            Text("未找到匹配的任务")
+                .font(.headline)
+                .foregroundColor(.secondary)
+
+            Text("尝试其他搜索关键词")
+                .font(.subheadline)
+                .foregroundColor(.secondary.opacity(0.8))
+
+            Button(action: clearSearch) {
+                Text("清除搜索")
+                    .font(.subheadline)
+            }
+            .buttonStyle(.bordered)
+            .padding(.top, 4)
+
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
     }
 
     /// 任务列表
@@ -248,6 +339,19 @@ struct ContentView: View {
                 }
             }
         )
+    }
+
+    // MARK: - 搜索操作
+
+    /// 聚焦搜索框（⌘F 快捷键）
+    private func focusSearchBar() {
+        isSearchFocused = true
+    }
+
+    /// 清除搜索
+    private func clearSearch() {
+        searchText = ""
+        isSearchFocused = false
     }
 
     // MARK: - 操作方法（带动画）
