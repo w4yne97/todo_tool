@@ -23,6 +23,9 @@ struct TodoRow: View {
     /// 选中回调（单击时触发）
     var onSelect: (() -> Void)?
 
+    /// 设置优先级回调
+    var onSetPriority: ((Priority) -> Void)?
+
     /// 外部控制的编辑状态绑定
     @Binding var isEditingExternally: Bool
 
@@ -49,6 +52,14 @@ struct TodoRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
+            // 优先级颜色圆点（仅非空优先级显示）
+            if todo.priority != .none {
+                Circle()
+                    .fill(todo.priority.color)
+                    .frame(width: 8, height: 8)
+                    .transition(.scale.combined(with: .opacity))
+            }
+            
             // 完成状态图标 - 带弹性缩放动画
             Button(action: onToggle) {
                 Image(systemName: todo.isCompleted ? "checkmark.circle.fill" : "circle")
@@ -93,6 +104,30 @@ struct TodoRow: View {
                         insertion: .opacity.combined(with: .move(edge: .trailing)),
                         removal: .opacity
                     ))
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: todo.priority)
+        // 右键菜单设置优先级
+        .contextMenu {
+            Menu("优先级") {
+                ForEach(Priority.allCases, id: \.self) { priority in
+                    Button {
+                        onSetPriority?(priority)
+                    } label: {
+                        HStack {
+                            if priority != .none {
+                                Circle()
+                                    .fill(priority.color)
+                                    .frame(width: 8, height: 8)
+                            }
+                            Text(priority.displayName)
+                            if todo.priority == priority {
+                                Spacer()
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
             }
         }
         .padding(.vertical, 4)
@@ -180,6 +215,7 @@ struct TodoRow: View {
         onDelete: { print("删除") },
         onEditEnd: { print("编辑结束") },
         onSelect: { print("选中") },
+        onSetPriority: { print("设置优先级: \($0)") },
         isEditingExternally: .constant(false)
     )
     .padding()
@@ -197,6 +233,24 @@ struct TodoRow: View {
         onDelete: nil,
         onEditEnd: nil,
         onSelect: nil,
+        onSetPriority: nil,
+        isEditingExternally: .constant(false)
+    )
+    .padding()
+}
+
+#Preview("高优先级") {
+    TodoRow(
+        todo: Todo(
+            title: "紧急任务",
+            priority: .high
+        ),
+        onToggle: {},
+        onUpdate: nil,
+        onDelete: nil,
+        onEditEnd: nil,
+        onSelect: nil,
+        onSetPriority: { print("设置优先级: \($0)") },
         isEditingExternally: .constant(false)
     )
     .padding()

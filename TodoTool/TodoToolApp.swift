@@ -87,6 +87,31 @@ struct TodoToolApp: App {
                     NotificationCenter.default.post(name: .toggleTask, object: nil)
                 }
                 .keyboardShortcut(.return, modifiers: .command)
+                
+                Divider()
+                
+                // 优先级快捷键
+                Menu("优先级") {
+                    Button("无优先级") {
+                        NotificationCenter.default.post(name: .setPriority, object: Priority.none)
+                    }
+                    .keyboardShortcut("0", modifiers: .command)
+                    
+                    Button("低优先级") {
+                        NotificationCenter.default.post(name: .setPriority, object: Priority.low)
+                    }
+                    .keyboardShortcut("1", modifiers: .command)
+                    
+                    Button("中优先级") {
+                        NotificationCenter.default.post(name: .setPriority, object: Priority.medium)
+                    }
+                    .keyboardShortcut("2", modifiers: .command)
+                    
+                    Button("高优先级") {
+                        NotificationCenter.default.post(name: .setPriority, object: Priority.high)
+                    }
+                    .keyboardShortcut("3", modifiers: .command)
+                }
             }
 
             // 视图菜单：外观设置

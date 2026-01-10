@@ -195,4 +195,51 @@ final class TodoModelTests: XCTestCase {
         
         XCTAssertNotEqual(todo1, todo2) // 不同的 UUID
     }
+    
+    // MARK: - 优先级测试
+    
+    func testTodoWithPriority() {
+        let todo = Todo(title: "高优先级任务", priority: .high)
+        
+        XCTAssertEqual(todo.priority, .high)
+    }
+    
+    func testPriorityEncodingDecoding() throws {
+        let todo = Todo(title: "中优先级任务", priority: .medium)
+        
+        let data = try Todo.encoder.encode(todo)
+        let jsonString = String(data: data, encoding: .utf8)!
+        
+        XCTAssertTrue(jsonString.contains("\"priority\" : \"medium\""))
+        
+        let decoded = try Todo.decoder.decode(Todo.self, from: data)
+        XCTAssertEqual(decoded.priority, .medium)
+    }
+    
+    func testBackwardCompatibility() throws {
+        // 模拟旧版本数据（无 priority 字段）
+        let json = """
+        {
+            "id": "12345678-1234-1234-1234-123456789012",
+            "title": "旧版任务",
+            "isCompleted": false,
+            "createdAt": "2026-01-09T10:00:00Z",
+            "completedAt": null,
+            "updatedAt": "2026-01-09T10:00:00Z"
+        }
+        """
+        
+        let data = json.data(using: .utf8)!
+        let todo = try Todo.decoder.decode(Todo.self, from: data)
+        
+        XCTAssertEqual(todo.title, "旧版任务")
+        XCTAssertEqual(todo.priority, .none) // 默认为无优先级
+    }
+    
+    func testPriorityDisplayName() {
+        XCTAssertEqual(Priority.none.displayName, "无")
+        XCTAssertEqual(Priority.low.displayName, "低")
+        XCTAssertEqual(Priority.medium.displayName, "中")
+        XCTAssertEqual(Priority.high.displayName, "高")
+    }
 }

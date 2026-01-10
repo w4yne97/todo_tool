@@ -93,6 +93,11 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .focusSearch)) { _ in
             focusSearchBar()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .setPriority)) { notification in
+            if let priority = notification.object as? Priority {
+                setSelectedTodoPriorityAnimated(priority)
+            }
+        }
         // Enter 进入编辑模式（⌘+Enter 切换完成状态由菜单命令处理）
         .onKeyPress(.return) { handleEditShortcut() }
     }
@@ -209,6 +214,9 @@ struct ContentView: View {
                                 // 单击选中
                                 selectedTodoId = todo.id
                             },
+                            onSetPriority: { priority in
+                                setTodoPriorityAnimated(id: todo.id, priority: priority)
+                            },
                             isEditingExternally: editingBinding(for: todo.id)
                         )
                         .tag(todo.id)
@@ -246,6 +254,9 @@ struct ContentView: View {
                             onSelect: {
                                 // 单击选中
                                 selectedTodoId = todo.id
+                            },
+                            onSetPriority: { priority in
+                                setTodoPriorityAnimated(id: todo.id, priority: priority)
                             },
                             isEditingExternally: editingBinding(for: todo.id)
                         )
@@ -450,6 +461,21 @@ struct ContentView: View {
         guard selectedTodoId != nil else { return .ignored }
         toggleSelectedTodoAnimated()
         return .handled
+    }
+    
+    /// 设置任务优先级（带动画）
+    private func setTodoPriorityAnimated(id: UUID, priority: Priority) {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            todoStore.setPriority(id: id, priority: priority)
+        }
+    }
+    
+    /// 设置选中任务的优先级（⌘0/1/2/3 快捷键，带动画）
+    private func setSelectedTodoPriorityAnimated(_ priority: Priority) {
+        guard let id = selectedTodoId else { return }
+        withAnimation(.easeInOut(duration: 0.2)) {
+            todoStore.setPriority(id: id, priority: priority)
+        }
     }
 }
 

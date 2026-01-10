@@ -21,4 +21,7 @@ extension Notification.Name {
 
     /// 聚焦搜索框快捷键通知
     static let focusSearch = Notification.Name("com.todotool.focusSearch")
+    
+    /// 设置优先级快捷键通知（携带 Priority 作为 object）
+    static let setPriority = Notification.Name("com.todotool.setPriority")
 }

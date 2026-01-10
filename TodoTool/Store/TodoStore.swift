@@ -145,4 +145,20 @@ final class TodoStore: ObservableObject {
         todos[index] = todo
         try? save()
     }
+    
+    /// 设置任务优先级
+    /// - Parameters:
+    ///   - id: 任务 ID
+    ///   - priority: 新优先级
+    func setPriority(id: UUID, priority: Priority) {
+        guard let index = todos.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+        
+        var todo = todos[index]
+        todo.priority = priority
+        todo.updatedAt = Date()
+        todos[index] = todo
+        try? save()
+    }
 }

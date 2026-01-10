@@ -294,4 +294,51 @@ final class TodoStoreTests: XCTestCase {
         XCTAssertTrue(store2.todos.first?.isCompleted ?? false)
         XCTAssertNotNil(store2.todos.first?.completedAt)
     }
+    
+    // MARK: - 优先级测试
+    
+    /// 测试设置优先级
+    func testSetPriority() {
+        let store = TodoStore(dataDirectory: testDirectory)
+        store.add(title: "测试任务")
+        let id = store.todos.first!.id
+        
+        // 初始应为无优先级
+        XCTAssertEqual(store.todos.first?.priority, Priority.none)
+        
+        // 设置为高优先级
+        store.setPriority(id: id, priority: .high)
+        XCTAssertEqual(store.todos.first?.priority, .high)
+        
+        // 设置为低优先级
+        store.setPriority(id: id, priority: .low)
+        XCTAssertEqual(store.todos.first?.priority, .low)
+        
+        // 清除优先级
+        store.setPriority(id: id, priority: .none)
+        XCTAssertEqual(store.todos.first?.priority, Priority.none)
+    }
+    
+    /// 测试优先级持久化
+    func testSetPriorityPersistence() {
+        // 创建并设置优先级
+        let store1 = TodoStore(dataDirectory: testDirectory)
+        store1.add(title: "持久化任务")
+        store1.setPriority(id: store1.todos.first!.id, priority: .high)
+        
+        // 使用新实例加载
+        let store2 = TodoStore(dataDirectory: testDirectory)
+        
+        XCTAssertEqual(store2.todos.first?.priority, .high)
+    }
+    
+    /// 测试设置不存在 ID 的优先级不崩溃
+    func testSetPriorityNonExistentId() {
+        let store = TodoStore(dataDirectory: testDirectory)
+        store.add(title: "任务")
+        
+        store.setPriority(id: UUID(), priority: .high) // 不存在的 ID
+        
+        XCTAssertEqual(store.todos.first?.priority, Priority.none, "设置不存在的 ID 优先级不应影响现有数据")
+    }
 }
