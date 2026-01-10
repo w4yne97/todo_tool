@@ -1,15 +1,50 @@
 // ==================== TodoTool 应用入口 ====================
 // 极简 macOS Todo 应用 - 零依赖、本地优先
 // 菜单栏快捷键：⌘N 新建、⌘⌫ 删除、⌘E 导出
+// 支持深色模式：视图 → 外观
 
 import SwiftUI
 import AppKit
 
+// ==================== 外观设置 ====================
+
+/// 外观模式枚举
+enum AppearanceMode: String, CaseIterable {
+    case system = "system"  // 跟随系统
+    case light = "light"    // 浅色模式
+    case dark = "dark"      // 深色模式
+
+    var displayName: String {
+        switch self {
+        case .system: return "跟随系统"
+        case .light: return "浅色"
+        case .dark: return "深色"
+        }
+    }
+
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .system: return nil
+        case .light: return .light
+        case .dark: return .dark
+        }
+    }
+}
+
 @main
 struct TodoToolApp: App {
+    /// 外观模式偏好（持久化到 UserDefaults）
+    @AppStorage("appearanceMode") private var appearanceMode: String = AppearanceMode.system.rawValue
+
+    /// 当前外观模式
+    private var currentMode: AppearanceMode {
+        AppearanceMode(rawValue: appearanceMode) ?? .system
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .preferredColorScheme(currentMode.colorScheme)
         }
         .windowResizability(.contentMinSize)
         .defaultSize(width: 400, height: 600)
@@ -45,6 +80,25 @@ struct TodoToolApp: App {
                     NotificationCenter.default.post(name: .toggleTask, object: nil)
                 }
                 .keyboardShortcut(.return, modifiers: .command)
+            }
+
+            // 视图菜单：外观设置
+            CommandMenu("视图") {
+                Menu("外观") {
+                    ForEach(AppearanceMode.allCases, id: \.self) { mode in
+                        Button {
+                            appearanceMode = mode.rawValue
+                        } label: {
+                            HStack {
+                                Text(mode.displayName)
+                                if currentMode == mode {
+                                    Spacer()
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
