@@ -341,4 +341,43 @@ final class TodoStoreTests: XCTestCase {
         
         XCTAssertEqual(store.todos.first?.priority, Priority.none, "设置不存在的 ID 优先级不应影响现有数据")
     }
+    
+    // MARK: - 排序与过滤测试
+    
+    /// 测试优先级排序和过滤
+    func testFilteredAndSortedTodos() {
+        let store = TodoStore(dataDirectory: testDirectory)
+        
+        // 添加不同优先级的任务
+        store.add(title: "高优任务", priority: .high)
+        store.add(title: "中优任务", priority: .medium)
+        store.add(title: "低优任务", priority: .low)
+        store.add(title: "无优任务", priority: .none)
+        store.add(title: "高优任务2", priority: .high) // 最新添加，应在同级最前
+        
+        // 1. 测试默认排序 (高 -> 中 -> 低 -> 无, 同级按时间)
+        let sorted = store.filteredAndSortedTodos()
+        XCTAssertEqual(sorted.count, 5)
+        XCTAssertEqual(sorted[0].title, "高优任务2")
+        XCTAssertEqual(sorted[1].title, "高优任务")
+        XCTAssertEqual(sorted[2].title, "中优任务")
+        XCTAssertEqual(sorted[3].title, "低优任务")
+        XCTAssertEqual(sorted[4].title, "无优任务")
+        
+        // 2. 测试搜索过滤
+        let searched = store.filteredAndSortedTodos(searchText: "高优")
+        XCTAssertEqual(searched.count, 2)
+        XCTAssertEqual(searched[0].title, "高优任务2")
+        XCTAssertEqual(searched[1].title, "高优任务")
+        
+        // 3. 测试优先级过滤
+        let filtered = store.filteredAndSortedTodos(priorityFilter: .medium)
+        XCTAssertEqual(filtered.count, 1)
+        XCTAssertEqual(filtered.first?.title, "中优任务")
+        
+        // 4. 测试搜索 + 优先级过滤
+        let combined = store.filteredAndSortedTodos(searchText: "任务", priorityFilter: .low)
+        XCTAssertEqual(combined.count, 1)
+        XCTAssertEqual(combined.first?.title, "低优任务")
+    }
 }

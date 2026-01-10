@@ -52,14 +52,8 @@ struct TodoRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            // 优先级颜色圆点（仅非空优先级显示）
-            if todo.priority != .none {
-                Circle()
-                    .fill(todo.priority.color)
-                    .frame(width: 8, height: 8)
-                    .transition(.scale.combined(with: .opacity))
-            }
-            
+            priorityMenu
+
             // 完成状态图标 - 带弹性缩放动画
             Button(action: onToggle) {
                 Image(systemName: todo.isCompleted ? "checkmark.circle.fill" : "circle")
@@ -107,29 +101,6 @@ struct TodoRow: View {
             }
         }
         .animation(.easeInOut(duration: 0.2), value: todo.priority)
-        // 右键菜单设置优先级
-        .contextMenu {
-            Menu("优先级") {
-                ForEach(Priority.allCases, id: \.self) { priority in
-                    Button {
-                        onSetPriority?(priority)
-                    } label: {
-                        HStack {
-                            if priority != .none {
-                                Circle()
-                                    .fill(priority.color)
-                                    .frame(width: 8, height: 8)
-                            }
-                            Text(priority.displayName)
-                            if todo.priority == priority {
-                                Spacer()
-                                Image(systemName: "checkmark")
-                            }
-                        }
-                    }
-                }
-            }
-        }
         .padding(.vertical, 4)
         .contentShape(Rectangle()) // 确保整行可点击
         .animation(.easeInOut(duration: 0.2), value: isEditingExternally)
@@ -158,6 +129,72 @@ struct TodoRow: View {
             if !newValue && isEditingExternally {
                 confirmEdit()
             }
+        }
+    }
+
+    @ViewBuilder
+    private var priorityMenu: some View {
+        // 使用 ZStack 将可见圆点与菜单触发器分离
+        // 圆点直接渲染（不作为 Menu label），菜单使用透明触发器
+        let color: Color = todo.priority == .none ? .gray.opacity(0.5) : todo.priority.color
+        
+        ZStack {
+            // 1. 可见的颜色圆点 - 直接渲染，不受 Menu 样式影响
+            Circle()
+                .fill(color)
+                .frame(width: 10, height: 10)
+            
+            // 2. 透明的菜单触发器
+            if let onSetPriority = onSetPriority {
+                Menu {
+                    ForEach(Priority.orderedCases, id: \.self) { priority in
+                        Button {
+                            onSetPriority(priority)
+                        } label: {
+                            HStack(spacing: 8) {
+                                Circle()
+                                    .fill(priority == .none ? Color.gray.opacity(0.5) : priority.color)
+                                    .frame(width: 8, height: 8)
+                                Text(priority.displayName)
+                                if todo.priority == priority {
+                                    Spacer()
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+                    }
+                } label: {
+                    // 透明触发区域
+                    Color.clear
+                        .frame(width: 20, height: 20)
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+            }
+        }
+        .frame(width: 20, height: 20)
+        .contentShape(Rectangle())
+        .help("优先级：\(todo.priority.displayName)")
+        .simultaneousGesture(
+            TapGesture()
+                .onEnded { onSelect?() }
+        )
+    }
+
+    private struct PriorityBadgeView: View {
+        let priority: Priority
+
+        var body: some View {
+            // 使用 Canvas 进行像素级绘制，完全绕过 macOS Menu 的样式覆盖
+            let color: Color = priority == .none ? .gray.opacity(0.5) : priority.color
+            Canvas { context, size in
+                let rect = CGRect(origin: .zero, size: size)
+                context.fill(Circle().path(in: rect), with: .color(color))
+            }
+            .frame(width: 10, height: 10)
+            .frame(width: 20, height: 20)
+            .contentShape(Rectangle())
+            .help("优先级：\(priority.displayName)")
         }
     }
 

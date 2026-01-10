@@ -5,6 +5,40 @@
 
 import SwiftUI
 
+private enum PriorityFilter: String, CaseIterable, Identifiable {
+    case all
+    case high
+    case medium
+    case low
+    case none
+
+    var id: String { rawValue }
+
+    static var allCases: [PriorityFilter] {
+        [.all, .high, .medium, .low, .none]
+    }
+
+    var displayName: String {
+        switch self {
+        case .all: return "全部"
+        case .high: return "高"
+        case .medium: return "中"
+        case .low: return "低"
+        case .none: return "无"
+        }
+    }
+
+    var priority: Priority? {
+        switch self {
+        case .all: return nil
+        case .high: return .high
+        case .medium: return .medium
+        case .low: return .low
+        case .none: return .none
+        }
+    }
+}
+
 struct ContentView: View {
     /// 状态管理器
     @StateObject private var todoStore = TodoStore()
@@ -12,9 +46,11 @@ struct ContentView: View {
     /// 新任务输入状态
     @State private var isAddingTask = false
     @State private var newTaskTitle = ""
+    @State private var newTaskPriority: Priority = .none
 
     /// 搜索文本
     @State private var searchText = ""
+    @State private var priorityFilter: PriorityFilter = .all
 
     /// 选中的任务 ID（用于快捷键操作）
     @State private var selectedTodoId: UUID?
@@ -30,13 +66,10 @@ struct ContentView: View {
 
     /// 过滤后的任务列表
     private var filteredTodos: [Todo] {
-        if searchText.isEmpty {
-            return todoStore.todos
-        }
-        return todoStore.todos.filter {
-            $0.title.localizedCaseInsensitiveContains(searchText)
-        }
+        todoStore.filteredAndSortedTodos(searchText: searchText, priorityFilter: priorityFilter.priority)
     }
+
+
 
     /// 待办任务（未完成，已过滤）
     private var pendingTodos: [Todo] {
@@ -46,6 +79,10 @@ struct ContentView: View {
     /// 已完成任务（已过滤）
     private var completedTodos: [Todo] {
         filteredTodos.filter { $0.isCompleted }
+    }
+
+    private var hasActiveFilters: Bool {
+        !searchText.isEmpty || priorityFilter != .all
     }
 
     var body: some View {
@@ -148,6 +185,11 @@ struct ContentView: View {
                 .buttonStyle(.plain)
                 .transition(.opacity)
             }
+
+            Divider()
+                .frame(height: 16)
+
+            priorityFilterMenu
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -156,6 +198,52 @@ struct ContentView: View {
         .padding(.horizontal)
         .padding(.bottom, 8)
         .animation(.easeInOut(duration: 0.15), value: searchText.isEmpty)
+    }
+
+    private var priorityFilterMenu: some View {
+        Menu {
+            ForEach(PriorityFilter.allCases) { filter in
+                Button {
+                    priorityFilter = filter
+                } label: {
+                    HStack(spacing: 8) {
+                        if let priority = filter.priority {
+                            Circle()
+                                .fill(priorityTint(priority))
+                                .frame(width: 8, height: 8)
+                        } else {
+                            Image(systemName: "line.3.horizontal.decrease.circle")
+                        }
+                        Text(filter.displayName)
+                        if filter == priorityFilter {
+                            Spacer()
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                if let priority = priorityFilter.priority {
+                    Circle()
+                        .fill(priorityTint(priority))
+                        .frame(width: 8, height: 8)
+                } else {
+                    Image(systemName: "line.3.horizontal.decrease.circle")
+                        .foregroundColor(.secondary)
+                }
+                Text("优先级 \(priorityFilter.displayName)")
+                    .font(.subheadline)
+                    .foregroundColor(.primary)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(
+                Capsule()
+                    .fill(Color.primary.opacity(priorityFilter == .all ? 0.06 : 0.12))
+            )
+        }
+        .menuStyle(.borderlessButton)
     }
 
     /// 搜索无结果视图
@@ -171,12 +259,12 @@ struct ContentView: View {
                 .font(.headline)
                 .foregroundColor(.secondary)
 
-            Text("尝试其他搜索关键词")
+            Text(hasActiveFilters ? "尝试调整搜索或优先级筛选" : "尝试其他搜索关键词")
                 .font(.subheadline)
                 .foregroundColor(.secondary.opacity(0.8))
 
-            Button(action: clearSearch) {
-                Text("清除搜索")
+            Button(action: clearFilters) {
+                Text("清除条件")
                     .font(.subheadline)
             }
             .buttonStyle(.bordered)
@@ -318,6 +406,8 @@ struct ContentView: View {
                 .frame(minWidth: 250)
                 .onSubmit(addTaskAnimated)
 
+            priorityPicker
+
             HStack(spacing: 12) {
                 Button("取消") {
                     cancelAddTask()
@@ -352,6 +442,12 @@ struct ContentView: View {
         )
     }
 
+
+
+    private func priorityTint(_ priority: Priority) -> Color {
+        priority == .none ? .secondary : priority.color
+    }
+
     // MARK: - 搜索操作
 
     /// 聚焦搜索框（⌘F 快捷键）
@@ -362,6 +458,13 @@ struct ContentView: View {
     /// 清除搜索
     private func clearSearch() {
         searchText = ""
+        isSearchFocused = false
+    }
+
+    /// 清除所有筛选条件
+    private func clearFilters() {
+        searchText = ""
+        priorityFilter = .all
         isSearchFocused = false
     }
 
@@ -378,7 +481,7 @@ struct ContentView: View {
         guard !title.isEmpty else { return }
 
         withAnimation(.easeInOut(duration: 0.25)) {
-            todoStore.add(title: title)
+            todoStore.add(title: title, priority: newTaskPriority)
         }
         cancelAddTask()
     }
@@ -386,7 +489,58 @@ struct ContentView: View {
     /// 取消添加
     private func cancelAddTask() {
         newTaskTitle = ""
+        newTaskPriority = .none
         isAddingTask = false
+    }
+
+    // MARK: - 新建任务优先级选择
+
+    private var priorityPicker: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("优先级")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+
+            HStack(spacing: 8) {
+                ForEach(Priority.orderedCases, id: \.self) { priority in
+                    Button {
+                        newTaskPriority = priority
+                    } label: {
+                        HStack(spacing: 4) {
+                            if priority != .none {
+                                Circle()
+                                    .fill(priorityTint(priority))
+                                    .frame(width: 6, height: 6)
+                            }
+                            Text(priority.displayName)
+                                .font(.subheadline)
+                                .foregroundColor(.primary)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(
+                            Capsule()
+                                .fill(
+                                    newTaskPriority == priority
+                                        ? priorityTint(priority).opacity(priority == .none ? 0.12 : 0.2)
+                                        : Color.primary.opacity(0.05)
+                                )
+                        )
+                        .overlay(
+                            Capsule()
+                                .stroke(
+                                    newTaskPriority == priority
+                                        ? priorityTint(priority).opacity(0.6)
+                                        : Color.clear,
+                                    lineWidth: 1
+                                )
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     /// 切换完成状态（带动画）

@@ -29,6 +29,20 @@ enum Priority: String, Codable, CaseIterable {
         case .high: return .red
         }
     }
+
+    /// 排序权重（数值越小优先级越高）
+    var sortRank: Int {
+        switch self {
+        case .high: return 0
+        case .medium: return 1
+        case .low: return 2
+        case .none: return 3
+        }
+    }
+
+    static var orderedCases: [Priority] {
+        allCases.sorted { $0.sortRank < $1.sortRank }
+    }
 }
 
 

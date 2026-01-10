@@ -91,14 +91,16 @@ final class TodoStore: ObservableObject {
     // MARK: - CRUD 操作（Phase 3 实现）
     
     /// 添加新任务
-    /// - Parameter title: 任务标题
-    func add(title: String) {
+    /// - Parameters:
+    ///   - title: 任务标题
+    ///   - priority: 任务优先级
+    func add(title: String, priority: Priority = .none) {
         guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               title.count <= 200 else {
             return
         }
         
-        let todo = Todo(title: title)
+        let todo = Todo(title: title, priority: priority)
         todos.insert(todo, at: 0) // 最新的在最前
         try? save()
     }
@@ -160,5 +162,37 @@ final class TodoStore: ObservableObject {
         todo.updatedAt = Date()
         todos[index] = todo
         try? save()
+    }
+    
+    // MARK: - 辅助查询
+    
+    /// 获取过滤并排序后的任务列表
+    /// - Parameters:
+    ///   - searchText: 搜索关键词
+    ///   - priorityFilter: 优先级筛选（可选）
+    /// - Returns: 处理后的任务列表
+    func filteredAndSortedTodos(searchText: String = "", priorityFilter: Priority? = nil) -> [Todo] {
+        var result = todos
+        
+        // 1. 过滤
+        if !searchText.isEmpty {
+            result = result.filter { $0.title.localizedCaseInsensitiveContains(searchText) }
+        }
+        
+        if let priority = priorityFilter {
+            result = result.filter { $0.priority == priority }
+        }
+        
+        // 2. 排序
+        // 优先级越高 (sortRank 小) 越靠前
+        // 同优先级下，创建时间越晚越靠前 (最新在最前)
+        result.sort {
+            if $0.priority.sortRank != $1.priority.sortRank {
+                return $0.priority.sortRank < $1.priority.sortRank
+            }
+            return $0.createdAt > $1.createdAt
+        }
+        
+        return result
     }
 }
