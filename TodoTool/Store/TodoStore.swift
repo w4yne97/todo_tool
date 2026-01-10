@@ -164,8 +164,39 @@ final class TodoStore: ObservableObject {
         try? save()
     }
     
+    // MARK: - 导入功能
+
+    /// 从 JSON 数据导入任务
+    /// - Parameters:
+    ///   - data: JSON 数据
+    ///   - mode: 导入模式
+    /// - Returns: 导入结果（新增数量，跳过数量）
+    /// - Throws: 解码错误
+    func importTodos(from data: Data, mode: ImportMode) throws -> (added: Int, skipped: Int) {
+        let todoData = try TodoData.decoded(from: data)
+        let newTodos = todoData.todos
+        switch mode {
+        case .replace:
+            // 覆盖模式：直接替换所有数据
+            todos = newTodos
+            try? save()
+            return (added: newTodos.count, skipped: 0)
+
+        case .merge:
+            // 合并模式：只添加不存在的任务
+            let existingIds = Set(todos.map { $0.id })
+            let newUniqueTodos = newTodos.filter { !existingIds.contains($0.id) }
+
+            // 新任务插入到列表开头
+            todos.insert(contentsOf: newUniqueTodos, at: 0)
+            try? save()
+
+            return (added: newUniqueTodos.count, skipped: newTodos.count - newUniqueTodos.count)
+        }
+    }
+
     // MARK: - 辅助查询
-    
+
     /// 获取过滤并排序后的任务列表
     /// - Parameters:
     ///   - searchText: 搜索关键词

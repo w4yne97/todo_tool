@@ -342,8 +342,97 @@ final class TodoStoreTests: XCTestCase {
         XCTAssertEqual(store.todos.first?.priority, Priority.none, "设置不存在的 ID 优先级不应影响现有数据")
     }
     
+    // MARK: - 导入功能测试
+
+    /// 测试覆盖模式导入
+    func testImportReplace() throws {
+        let store = TodoStore(dataDirectory: testDirectory)
+        store.add(title: "现有任务1")
+        store.add(title: "现有任务2")
+        XCTAssertEqual(store.todos.count, 2)
+
+        // 准备导入数据
+        let newTodo = Todo(title: "导入任务")
+        let importData = TodoData(version: 1, todos: [newTodo])
+        let data = try importData.encoded()
+
+        // 覆盖导入
+        let result = try store.importTodos(from: data, mode: .replace)
+
+        XCTAssertEqual(result.added, 1)
+        XCTAssertEqual(result.skipped, 0)
+        XCTAssertEqual(store.todos.count, 1)
+        XCTAssertEqual(store.todos.first?.title, "导入任务")
+    }
+
+    /// 测试合并模式导入（无重复）
+    func testImportMergeNoDuplicates() throws {
+        let store = TodoStore(dataDirectory: testDirectory)
+        store.add(title: "现有任务")
+        XCTAssertEqual(store.todos.count, 1)
+
+        // 准备导入数据（不同 ID）
+        let newTodo = Todo(title: "导入任务")
+        let importData = TodoData(version: 1, todos: [newTodo])
+        let data = try importData.encoded()
+
+        // 合并导入
+        let result = try store.importTodos(from: data, mode: .merge)
+
+        XCTAssertEqual(result.added, 1)
+        XCTAssertEqual(result.skipped, 0)
+        XCTAssertEqual(store.todos.count, 2)
+    }
+
+    /// 测试合并模式导入（有重复 ID）
+    func testImportMergeWithDuplicates() throws {
+        let store = TodoStore(dataDirectory: testDirectory)
+        store.add(title: "现有任务")
+        let existingId = store.todos.first!.id
+
+        // 准备导入数据（包含相同 ID 的任务）
+        let duplicateTodo = Todo(id: existingId, title: "重复任务")
+        let newTodo = Todo(title: "新任务")
+        let importData = TodoData(version: 1, todos: [duplicateTodo, newTodo])
+        let data = try importData.encoded()
+
+        // 合并导入
+        let result = try store.importTodos(from: data, mode: .merge)
+
+        XCTAssertEqual(result.added, 1, "只应添加不重复的任务")
+        XCTAssertEqual(result.skipped, 1, "应跳过 1 个重复任务")
+        XCTAssertEqual(store.todos.count, 2)
+        XCTAssertEqual(store.todos.first?.title, "新任务") // 新任务在前
+    }
+
+    /// 测试导入无效 JSON 抛出错误
+    func testImportInvalidJson() {
+        let store = TodoStore(dataDirectory: testDirectory)
+        let invalidData = "invalid json".data(using: .utf8)!
+
+        XCTAssertThrowsError(try store.importTodos(from: invalidData, mode: .replace))
+    }
+
+    /// 测试导入后数据持久化
+    func testImportPersistence() throws {
+        let store1 = TodoStore(dataDirectory: testDirectory)
+
+        // 准备导入数据
+        let todo = Todo(title: "导入任务")
+        let importData = TodoData(version: 1, todos: [todo])
+        let data = try importData.encoded()
+
+        // 导入
+        _ = try store1.importTodos(from: data, mode: .replace)
+
+        // 使用新实例验证持久化
+        let store2 = TodoStore(dataDirectory: testDirectory)
+        XCTAssertEqual(store2.todos.count, 1)
+        XCTAssertEqual(store2.todos.first?.title, "导入任务")
+    }
+
     // MARK: - 排序与过滤测试
-    
+
     /// 测试优先级排序和过滤
     func testFilteredAndSortedTodos() {
         let store = TodoStore(dataDirectory: testDirectory)

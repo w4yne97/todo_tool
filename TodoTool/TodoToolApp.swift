@@ -1,10 +1,11 @@
 // ==================== TodoTool 应用入口 ====================
 // 极简 macOS Todo 应用 - 零依赖、本地优先
-// 菜单栏快捷键：⌘N 新建、⌘⌫ 删除、⌘E 导出、⌘F 搜索
+// 菜单栏快捷键：⌘N 新建、⌘⌫ 删除、⌘E 导出、⌘I 导入、⌘F 搜索
 // 支持深色模式：视图 → 外观
 
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
 
 // ==================== 外观设置 ====================
 
@@ -57,9 +58,14 @@ struct TodoToolApp: App {
                 .keyboardShortcut("n", modifiers: .command)
             }
 
-            // 文件菜单：导出功能
+            // 文件菜单：导入/导出功能
             CommandGroup(after: .newItem) {
                 Divider()
+
+                Button("导入数据…") {
+                    importData()
+                }
+                .keyboardShortcut("i", modifiers: .command)
 
                 Button("导出数据…") {
                     exportData()
@@ -133,6 +139,69 @@ struct TodoToolApp: App {
                 }
             }
         }
+    }
+
+    // MARK: - 导入功能
+
+    /// 导入数据从用户选择的 JSON 文件
+    private func importData() {
+        // 显示打开文件对话框
+        let openPanel = NSOpenPanel()
+        openPanel.title = "导入待办事项"
+        openPanel.message = "选择要导入的 JSON 文件"
+        openPanel.allowedContentTypes = [UTType.json]
+        openPanel.allowsMultipleSelection = false
+        openPanel.canChooseDirectories = false
+        openPanel.canChooseFiles = true
+
+        guard openPanel.runModal() == .OK, let url = openPanel.url else { return }
+
+        // 读取文件
+        guard let jsonData = try? Data(contentsOf: url) else {
+            showAlert(title: "导入失败", message: "无法读取文件")
+            return
+        }
+
+        // 验证 JSON 格式
+        do {
+            _ = try TodoData.decoded(from: jsonData)
+        } catch {
+            showAlert(title: "导入失败", message: "文件格式无效：\(error.localizedDescription)")
+            return
+        }
+
+        // 显示导入选项对话框
+        showImportOptionsDialog(fileData: jsonData)
+    }
+
+    /// 显示导入选项对话框（覆盖/合并）
+    private func showImportOptionsDialog(fileData: Data) {
+        let alert = NSAlert()
+        alert.messageText = "选择导入方式"
+        alert.informativeText = "覆盖：替换所有现有任务\n合并：保留现有任务，跳过重复项"
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "覆盖")
+        alert.addButton(withTitle: "合并")
+        alert.addButton(withTitle: "取消")
+
+        let response = alert.runModal()
+
+        let mode: ImportMode
+        switch response {
+        case .alertFirstButtonReturn:
+            mode = .replace
+        case .alertSecondButtonReturn:
+            mode = .merge
+        default:
+            return // 用户取消
+        }
+
+        // 发送导入请求通知
+        let request = ImportRequest(fileData: fileData, mode: mode)
+        NotificationCenter.default.post(
+            name: .importDataRequest,
+            object: request
+        )
     }
 
     // MARK: - 导出功能

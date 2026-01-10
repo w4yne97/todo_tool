@@ -3,6 +3,21 @@
 
 import Foundation
 
+// MARK: - 导入模式
+
+/// 导入模式枚举（独立定义，避免循环依赖）
+enum ImportMode: String {
+    case replace  // 覆盖现有数据
+    case merge    // 合并（跳过重复 ID）
+
+    var displayName: String {
+        switch self {
+        case .replace: return "覆盖"
+        case .merge: return "合并"
+        }
+    }
+}
+
 extension Notification.Name {
     /// 新建任务快捷键通知
     static let addTask = Notification.Name("com.todotool.addTask")
@@ -24,4 +39,18 @@ extension Notification.Name {
     
     /// 设置优先级快捷键通知（携带 Priority 作为 object）
     static let setPriority = Notification.Name("com.todotool.setPriority")
+
+    /// 数据已导入通知（通知 View 层刷新）
+    static let dataImported = Notification.Name("com.todotool.dataImported")
+
+    /// 导入数据请求通知（携带 ImportRequest 作为 userInfo）
+    static let importDataRequest = Notification.Name("com.todotool.importDataRequest")
+}
+
+// MARK: - 导入请求数据
+
+/// 导入请求结构，用于在 App 和 View 层之间传递导入参数
+struct ImportRequest {
+    let fileData: Data   // JSON 文件内容
+    let mode: ImportMode // 导入模式
 }

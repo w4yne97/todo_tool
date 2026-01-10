@@ -1,9 +1,10 @@
 // ==================== 主界面视图 ====================
 // 任务列表、添加任务、空状态展示
-// 支持快捷键：⌘N 新建、⌘⌫ 删除、⌘F 搜索、Enter 编辑、⌘Enter 切换完成、Esc 取消
+// 支持快捷键：⌘N 新建、⌘⌫ 删除、⌘F 搜索、⌘I 导入、Enter 编辑、⌘Enter 切换完成、Esc 取消
 // 支持双击行内编辑、添加/删除/切换动画、实时搜索过滤
 
 import SwiftUI
+import AppKit
 
 private enum PriorityFilter: String, CaseIterable, Identifiable {
     case all
@@ -134,6 +135,9 @@ struct ContentView: View {
             if let priority = notification.object as? Priority {
                 setSelectedTodoPriorityAnimated(priority)
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .importDataRequest)) { notification in
+            handleImportRequest(notification)
         }
         // Enter 进入编辑模式（⌘+Enter 切换完成状态由菜单命令处理）
         .onKeyPress(.return) { handleEditShortcut() }
@@ -630,6 +634,51 @@ struct ContentView: View {
         withAnimation(.easeInOut(duration: 0.2)) {
             todoStore.setPriority(id: id, priority: priority)
         }
+    }
+
+    // MARK: - 导入功能
+
+    /// 处理导入请求通知
+    private func handleImportRequest(_ notification: Notification) {
+        guard let request = notification.object as? ImportRequest else { return }
+
+        do {
+            let result = try todoStore.importTodos(from: request.fileData, mode: request.mode)
+            showImportResult(added: result.added, skipped: result.skipped, mode: request.mode)
+        } catch {
+            showImportError(error)
+        }
+    }
+
+    /// 显示导入结果
+    private func showImportResult(added: Int, skipped: Int, mode: ImportMode) {
+        let alert = NSAlert()
+        alert.messageText = "导入成功"
+
+        switch mode {
+        case .replace:
+            alert.informativeText = "已覆盖导入 \(added) 个任务"
+        case .merge:
+            if skipped > 0 {
+                alert.informativeText = "新增 \(added) 个任务，跳过 \(skipped) 个重复项"
+            } else {
+                alert.informativeText = "新增 \(added) 个任务"
+            }
+        }
+
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "确定")
+        alert.runModal()
+    }
+
+    /// 显示导入错误
+    private func showImportError(_ error: Error) {
+        let alert = NSAlert()
+        alert.messageText = "导入失败"
+        alert.informativeText = error.localizedDescription
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "确定")
+        alert.runModal()
     }
 }
 
