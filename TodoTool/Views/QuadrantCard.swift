@@ -1,110 +1,126 @@
-// ==================== 象限卡片组件 ====================
-// 四象限视图中的单个象限卡片，显示该象限的任务列表
-
 import SwiftUI
 
-/// 象限卡片视图
-/// 显示单个象限的标题、任务计数和任务列表
 struct QuadrantCard: View {
-    /// 象限类型
     let quadrant: Quadrant
-    /// 该象限的任务列表
     let todos: [Todo]
-    /// 任务点击回调
     var onToggle: ((UUID) -> Void)?
-    /// 任务选中回调
     var onSelect: ((UUID) -> Void)?
+    
+    @State private var isHovered = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // 标题栏
+        VStack(spacing: 0) {
             headerView
+            
+            Divider()
+                .opacity(0.5)
 
-            // 任务列表或空状态
-            if todos.isEmpty {
-                emptyStateView
-            } else {
-                taskListView
+            ZStack {
+                if todos.isEmpty {
+                    emptyStateView
+                } else {
+                    taskListView
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.clear)
         }
-        .padding(12)
-        .background(cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .background(.regularMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(quadrant.color.opacity(0.3), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [
+                            quadrant.color.opacity(0.4),
+                            quadrant.color.opacity(0.1)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
         )
+        .shadow(
+            color: quadrant.color.opacity(isHovered ? 0.15 : 0.05),
+            radius: isHovered ? 16 : 8,
+            x: 0,
+            y: isHovered ? 4 : 2
+        )
+        .scaleEffect(isHovered ? 1.005 : 1.0)
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isHovered)
+        .onHover { hovering in
+            isHovered = hovering
+        }
     }
 
-    // MARK: - 子视图
-
-    /// 标题栏
     private var headerView: some View {
         HStack {
-            // 颜色指示器
-            Circle()
-                .fill(quadrant.color)
-                .frame(width: 10, height: 10)
-
-            // 象限名称
+            Image(systemName: quadrant.iconName)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(quadrant.color)
+                .frame(width: 32, height: 32)
+                .background(quadrant.color.opacity(0.1))
+                .clipShape(Circle())
+            
             Text(quadrant.shortName)
-                .font(.headline)
+                .font(.system(size: 16, weight: .bold, design: .rounded))
                 .foregroundColor(.primary)
 
             Spacer()
 
-            // 任务计数
             Text("\(todos.count)")
-                .font(.subheadline)
+                .font(.system(size: 12, weight: .medium, design: .monospaced))
                 .foregroundColor(.secondary)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 2)
-                .background(Color.primary.opacity(0.1))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(Color.primary.opacity(0.05))
                 .clipShape(Capsule())
         }
+        .padding(16)
+        .background(.ultraThinMaterial)
     }
 
-    /// 空状态视图
     private var emptyStateView: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 12) {
             Spacer()
-            Text("暂无任务")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
+            
+            Image(systemName: quadrant.iconName)
+                .font(.system(size: 48))
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [quadrant.color.opacity(0.2), quadrant.color.opacity(0.05)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .padding(.bottom, 4)
+            
             Text(quadrant.actionHint)
-                .font(.caption)
-                .foregroundColor(.secondary.opacity(0.7))
+                .font(.system(size: 14, weight: .medium, design: .rounded))
+                .foregroundColor(.secondary)
+            
             Spacer()
         }
-        .frame(maxWidth: .infinity, minHeight: 80)
     }
 
-    /// 任务列表
     private var taskListView: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 6) {
+            LazyVStack(spacing: 8) {
                 ForEach(todos) { todo in
                     QuadrantTodoRow(
                         todo: todo,
                         onToggle: { onToggle?(todo.id) },
                         onSelect: { onSelect?(todo.id) }
                     )
+                    .transition(.opacity.combined(with: .move(edge: .leading)))
                 }
             }
+            .padding(12)
         }
-        .frame(minHeight: 80)
-    }
-
-    /// 卡片背景
-    private var cardBackground: some View {
-        RoundedRectangle(cornerRadius: 12)
-            .fill(Color.primary.opacity(0.03))
     }
 }
 
-// MARK: - 象限任务行
-
-/// 象限视图中的简化任务行
 struct QuadrantTodoRow: View {
     let todo: Todo
     var onToggle: (() -> Void)?
@@ -113,96 +129,108 @@ struct QuadrantTodoRow: View {
     @State private var isHovered = false
 
     var body: some View {
-        HStack(spacing: 8) {
-            // 完成状态图标
+        HStack(spacing: 10) {
             Button(action: { onToggle?() }) {
-                Image(systemName: todo.isCompleted ? "checkmark.circle.fill" : "circle")
-                    .foregroundColor(todo.isCompleted ? .green : .secondary)
-                    .font(.system(size: 16))
+                ZStack {
+                    Circle()
+                        .stroke(
+                            todo.isCompleted ? Color.green : Color.secondary.opacity(0.3),
+                            lineWidth: 1.5
+                        )
+                        .frame(width: 18, height: 18)
+                    
+                    if todo.isCompleted {
+                        Circle()
+                            .fill(Color.green)
+                            .frame(width: 10, height: 10)
+                    }
+                }
             }
             .buttonStyle(.plain)
 
-            // 优先级指示器
+            VStack(alignment: .leading, spacing: 2) {
+                Text(todo.title)
+                    .font(.system(size: 14))
+                    .foregroundColor(todo.isCompleted ? .secondary : .primary)
+                    .strikethrough(todo.isCompleted)
+                    .lineLimit(1)
+                
+                if let dueDate = todo.dueDate {
+                    HStack(spacing: 4) {
+                        Image(systemName: "calendar")
+                            .font(.system(size: 10))
+                        Text(formatDate(dueDate))
+                            .font(.system(size: 10, design: .monospaced))
+                    }
+                    .foregroundColor(dateColor(for: todo))
+                }
+            }
+
+            Spacer()
+            
             if todo.priority != .none && !todo.isCompleted {
                 Circle()
                     .fill(todo.priority.color)
                     .frame(width: 6, height: 6)
-            }
-
-            // 任务标题
-            Text(todo.title)
-                .font(.subheadline)
-                .foregroundColor(todo.isCompleted ? .secondary : .primary)
-                .strikethrough(todo.isCompleted)
-                .lineLimit(1)
-                .truncationMode(.tail)
-
-            Spacer()
-
-            // 到期日期标签（如果有）
-            if let dueDate = todo.dueDate {
-                dueDateLabel(dueDate)
+                    .shadow(color: todo.priority.color.opacity(0.5), radius: 2)
             }
         }
-        .padding(.vertical, 4)
-        .padding(.horizontal, 8)
-        .background(isHovered ? Color.primary.opacity(0.06) : Color.primary.opacity(0.02))
-        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .padding(.vertical, 10)
+        .padding(.horizontal, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(isHovered ? Color.primary.opacity(0.05) : Color.primary.opacity(0.02))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color.primary.opacity(isHovered ? 0.1 : 0), lineWidth: 1)
+        )
         .contentShape(Rectangle())
         .onHover { hovering in
-            isHovered = hovering
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isHovered = hovering
+            }
         }
         .onTapGesture {
             onSelect?()
         }
     }
 
-    /// 到期日期标签
-    private func dueDateLabel(_ date: Date) -> some View {
-        let isOverdue = todo.isOverdue
-        let isDueSoon = todo.isDueSoon
-
-        return Text(formatDate(date))
-            .font(.caption2)
-            .foregroundColor(isOverdue ? .white : (isDueSoon ? .orange : .secondary))
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(isOverdue ? Color.red : Color.clear)
-            .clipShape(Capsule())
-    }
-
-    /// 格式化日期
     private func formatDate(_ date: Date) -> String {
         let calendar = Calendar.current
-        if calendar.isDateInToday(date) {
-            return "今天"
-        } else if calendar.isDateInTomorrow(date) {
-            return "明天"
-        } else {
-            let formatter = DateFormatter()
-            formatter.dateFormat = "M/d"
-            return formatter.string(from: date)
-        }
+        if calendar.isDateInToday(date) { return "今天" }
+        if calendar.isDateInTomorrow(date) { return "明天" }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "M/d"
+        return formatter.string(from: date)
+    }
+    
+    private func dateColor(for todo: Todo) -> Color {
+        if todo.isOverdue { return .red }
+        if todo.isDueSoon { return .orange }
+        return .secondary
     }
 }
 
-// MARK: - Preview
-
 #Preview("四象限卡片") {
-    HStack(spacing: 16) {
-        QuadrantCard(
-            quadrant: .urgentImportant,
-            todos: [
-                Todo(title: "紧急任务1", priority: .high, dueDate: Date()),
-                Todo(title: "紧急任务2", priority: .medium, dueDate: Date())
-            ]
-        )
-
-        QuadrantCard(
-            quadrant: .notUrgentNotImportant,
-            todos: []
-        )
+    ZStack {
+        Color.gray.opacity(0.1)
+        HStack(spacing: 20) {
+            QuadrantCard(
+                quadrant: .urgentImportant,
+                todos: [
+                    Todo(title: "完成季度报告", priority: .high, dueDate: Date()),
+                    Todo(title: "紧急客户会议", priority: .high, dueDate: Date().addingTimeInterval(3600)),
+                    Todo(title: "修复线上 Bug", priority: .medium, dueDate: Date())
+                ]
+            )
+            
+            QuadrantCard(
+                quadrant: .notUrgentNotImportant,
+                todos: []
+            )
+        }
+        .padding(40)
+        .frame(width: 800, height: 500)
     }
-    .padding()
-    .frame(width: 600, height: 300)
 }
