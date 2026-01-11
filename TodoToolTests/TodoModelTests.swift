@@ -1,4 +1,5 @@
 import XCTest
+import XCTest
 @testable import TodoTool
 
 final class TodoModelTests: XCTestCase {
@@ -241,5 +242,13 @@ final class TodoModelTests: XCTestCase {
         XCTAssertEqual(Priority.low.displayName, "低")
         XCTAssertEqual(Priority.medium.displayName, "中")
         XCTAssertEqual(Priority.high.displayName, "高")
+    }
+
+    func testIsOverdueAndDueSoon() {
+        let overdue = Todo(title: "过期", dueDate: Date().addingTimeInterval(-3600))
+        XCTAssertTrue(overdue.isOverdue)
+        let dueSoon = Todo(title: "临近", dueDate: Date().addingTimeInterval(3600))
+        XCTAssertFalse(dueSoon.isOverdue)
+        XCTAssertTrue(dueSoon.isDueSoon)
     }
 }

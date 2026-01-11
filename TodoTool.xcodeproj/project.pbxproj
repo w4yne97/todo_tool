@@ -17,6 +17,9 @@
 		A1000001229F0001A /* TodoRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000001229F0001B /* TodoRow.swift */; };
 		A1000001229F0001C /* Notifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000001229F0001D /* Notifications.swift */; };
 		A1000001229F0001E /* Tag.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000001229F0001F /* Tag.swift */; };
+		A1000001229F00091 /* BatchActionsBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000001229F00090 /* BatchActionsBar.swift */; };
+		A1000001229F00093 /* SearchFilterBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000001229F00092 /* SearchFilterBar.swift */; };
+		A1000001229F00095 /* PriorityFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000001229F00094 /* PriorityFilter.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -43,6 +46,9 @@
 		A1000001229F0001B /* TodoRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodoRow.swift; sourceTree = "<group>"; };
 		A1000001229F0001D /* Notifications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Notifications.swift; sourceTree = "<group>"; };
 		A1000001229F0001F /* Tag.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tag.swift; sourceTree = "<group>"; };
+		A1000001229F00090 /* BatchActionsBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components/BatchActionsBar.swift; sourceTree = "<group>"; };
+		A1000001229F00092 /* SearchFilterBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components/SearchFilterBar.swift; sourceTree = "<group>"; };
+		A1000001229F00094 /* PriorityFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components/PriorityFilter.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -117,6 +123,9 @@
 			children = (
 				A1000001229F00012 /* ContentView.swift */,
 				A1000001229F0001B /* TodoRow.swift */,
+				A1000001229F00090 /* BatchActionsBar.swift */,
+				A1000001229F00092 /* SearchFilterBar.swift */,
+				A1000001229F00094 /* PriorityFilter.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -236,6 +245,9 @@
 				A1000001229F0001E /* Tag.swift in Sources */,
 				A1000001229F00006 /* TodoStore.swift in Sources */,
 				A1000001229F0001A /* TodoRow.swift in Sources */,
+				A1000001229F00091 /* BatchActionsBar.swift in Sources */,
+				A1000001229F00093 /* SearchFilterBar.swift in Sources */,
+				A1000001229F00095 /* PriorityFilter.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

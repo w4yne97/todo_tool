@@ -1,13 +1,5 @@
 import Foundation
-
-// MARK: - Array 扩展
-
-extension Array {
-    /// 安全的下标访问，越界时返回 nil
-    subscript(safe index: Int) -> Element? {
-        indices.contains(index) ? self[index] : nil
-    }
-}
+import SwiftUI
 
 /// 状态管理器 + 持久化层
 /// 负责管理待办事项的状态并将数据持久化到 JSON 文件
@@ -16,6 +8,10 @@ final class TodoStore: ObservableObject {
     @Published private(set) var todos: [Todo] = []
     /// 标签列表
     @Published private(set) var tags: [Tag] = []
+
+    private var cachedFilteredTodos: [Todo] = []
+    private var lastFilterParams: (String, Priority?, UUID?) = ("", nil, nil)
+    private var cacheDirty = true
 
     /// 数据文件 URL
     private let dataURL: URL
@@ -27,10 +23,28 @@ final class TodoStore: ObservableObject {
     /// 文件管理器
     private let fileManager = FileManager.default
 
+    private func markDirty() {
+        cacheDirty = true
+    }
+
+    private func saveSafely() {
+        do {
+            try save()
+        } catch {
+            print("[TodoStore] 保存失败: \(error)")
+        }
+        markDirty()
+    }
+
     // MARK: - 撤销/重做（历史栈）
 
+    private struct HistoryState {
+        var todos: [Todo]
+        var tags: [Tag]
+    }
+
     /// 历史状态栈
-    private var history: [[Todo]] = []
+    private var history: [HistoryState] = []
     /// 当前历史位置
     private var historyIndex: Int = -1
     /// 最大历史深度
@@ -76,22 +90,20 @@ final class TodoStore: ObservableObject {
 
     /// 初始化历史栈
     private func initHistory() {
-        history = [todos]
+        history = [HistoryState(todos: todos, tags: tags)]
         historyIndex = 0
     }
 
     /// 保存当前状态到历史栈
     private func saveState() {
-        // 如果不在历史末尾，丢弃后续历史（新分支）
+        markDirty()
         if historyIndex < history.count - 1 {
             history = Array(history.prefix(historyIndex + 1))
         }
 
-        // 添加当前状态
-        history.append(todos)
+        history.append(HistoryState(todos: todos, tags: tags))
         historyIndex = history.count - 1
 
-        // 超过最大深度时移除最旧的状态
         if history.count > maxHistorySize {
             history.removeFirst()
             historyIndex -= 1
@@ -102,44 +114,69 @@ final class TodoStore: ObservableObject {
     func undo() {
         guard canUndo else { return }
         historyIndex -= 1
-        todos = history[historyIndex]
-        try? save()
+        let state = history[historyIndex]
+        todos = state.todos
+        tags = state.tags
+        saveSafely()
     }
 
     /// 重做已撤销的操作
     func redo() {
         guard canRedo else { return }
         historyIndex += 1
-        todos = history[historyIndex]
-        try? save()
+        let state = history[historyIndex]
+        todos = state.todos
+        tags = state.tags
+        saveSafely()
     }
     
     // MARK: - 数据加载
 
+    private enum LoadError: Error {
+        case fileNotFound
+        case dataCorrupted
+        case backupDataCorrupted
+    }
+
     /// 从 JSON 文件加载数据
     /// 加载优先级：主文件 → 备份文件 → 空数据
     func load() {
-        // 尝试读取主数据文件
-        if let data = try? Data(contentsOf: dataURL),
-           let todoData = try? TodoData.decoded(from: data) {
-            self.todos = todoData.todos
-            self.tags = todoData.tags
-            return
-        }
+        do {
+            if fileManager.fileExists(atPath: dataURL.path) {
+                do {
+                    let data = try Data(contentsOf: dataURL)
+                    let todoData = try TodoData.decoded(from: data)
+                    todos = todoData.todos
+                    tags = todoData.tags
+                    markDirty()
+                    return
+                } catch {
+                    print("[TodoStore] 主数据损坏，尝试备份: \(error)")
+                }
+            }
 
-        // 主文件不存在或损坏，尝试备份文件
-        if let data = try? Data(contentsOf: backupURL),
-           let todoData = try? TodoData.decoded(from: data) {
-            self.todos = todoData.todos
-            self.tags = todoData.tags
-            // 从备份恢复后，重新保存主文件
-            try? save()
-            return
-        }
+            if fileManager.fileExists(atPath: backupURL.path) {
+                do {
+                    let data = try Data(contentsOf: backupURL)
+                    let todoData = try TodoData.decoded(from: data)
+                    todos = todoData.todos
+                    tags = todoData.tags
+                    saveSafely()
+                    print("[TodoStore] 从备份恢复数据")
+                    return
+                } catch {
+                    print("[TodoStore] 备份数据损坏: \(error)")
+                    throw LoadError.backupDataCorrupted
+                }
+            }
 
-        // 无有效数据，使用空数据
-        self.todos = []
-        self.tags = []
+            throw LoadError.fileNotFound
+        } catch {
+            print("[TodoStore] 数据加载失败，使用空数据: \(error)")
+            todos = []
+            tags = []
+            markDirty()
+        }
     }
 
     // MARK: - 原子写入
@@ -182,7 +219,7 @@ final class TodoStore: ObservableObject {
         let minSortOrder = todos.map { $0.sortOrder }.min() ?? 0
         let todo = Todo(title: title, priority: priority, sortOrder: minSortOrder - 1)
         todos.insert(todo, at: 0) // 最新的在最前
-        try? save()
+        saveSafely()
         saveState()
     }
     
@@ -198,7 +235,7 @@ final class TodoStore: ObservableObject {
         todo.completedAt = todo.isCompleted ? Date() : nil
         todo.updatedAt = Date()
         todos[index] = todo
-        try? save()
+        saveSafely()
         saveState()
     }
 
@@ -206,7 +243,7 @@ final class TodoStore: ObservableObject {
     /// - Parameter id: 任务 ID
     func delete(id: UUID) {
         todos.removeAll { $0.id == id }
-        try? save()
+        saveSafely()
         saveState()
     }
 
@@ -215,7 +252,7 @@ final class TodoStore: ObservableObject {
     func deleteMultiple(ids: Set<UUID>) {
         guard !ids.isEmpty else { return }
         todos.removeAll { ids.contains($0.id) }
-        try? save()
+        saveSafely()
         saveState()
     }
 
@@ -224,7 +261,7 @@ final class TodoStore: ObservableObject {
         let completedIds = Set(todos.filter { $0.isCompleted }.map { $0.id })
         guard !completedIds.isEmpty else { return }
         todos.removeAll { $0.isCompleted }
-        try? save()
+        saveSafely()
         saveState()
     }
 
@@ -241,7 +278,7 @@ final class TodoStore: ObservableObject {
                 todos[index].updatedAt = Date()
             }
         }
-        try? save()
+        saveSafely()
         saveState()
     }
 
@@ -257,7 +294,7 @@ final class TodoStore: ObservableObject {
                 todos[index].updatedAt = Date()
             }
         }
-        try? save()
+        saveSafely()
         saveState()
     }
     
@@ -279,7 +316,7 @@ final class TodoStore: ObservableObject {
         todo.title = title
         todo.updatedAt = Date()
         todos[index] = todo
-        try? save()
+        saveSafely()
         saveState()
     }
 
@@ -296,7 +333,7 @@ final class TodoStore: ObservableObject {
         todo.priority = priority
         todo.updatedAt = Date()
         todos[index] = todo
-        try? save()
+        saveSafely()
         saveState()
     }
 
@@ -313,7 +350,7 @@ final class TodoStore: ObservableObject {
         todo.dueDate = dueDate
         todo.updatedAt = Date()
         todos[index] = todo
-        try? save()
+        saveSafely()
         saveState()
     }
 
@@ -323,42 +360,38 @@ final class TodoStore: ObservableObject {
     ///   - destination: 目标索引
     ///   - inSection: 该分组的任务列表（待办或已完成）
     func move(from source: IndexSet, to destination: Int, inSection sectionTodos: [Todo]) {
-        // 获取被移动的任务
         guard let sourceIndex = source.first,
               sourceIndex < sectionTodos.count else { return }
 
         let movedTodo = sectionTodos[sourceIndex]
-
-        // 计算实际目标位置（考虑源元素移除后的偏移）
         let adjustedDest = destination > sourceIndex ? destination - 1 : destination
-
-        // 确保目标位置有效
         guard adjustedDest >= 0 && adjustedDest < sectionTodos.count else { return }
 
-        // 计算新的 sortOrder
+        let destinationPriority: Priority = {
+            if adjustedDest >= 0 && adjustedDest < sectionTodos.count {
+                return sectionTodos[adjustedDest].priority
+            }
+            return movedTodo.priority
+        }()
+
+        guard destinationPriority == movedTodo.priority else { return }
+
         var newSortOrder: Int
 
         if adjustedDest == 0 {
-            // 移动到最前面
             let firstTodo = sectionTodos.first { $0.id != movedTodo.id }
             let firstSortOrder = firstTodo?.sortOrder ?? 0
             newSortOrder = firstSortOrder - 10
         } else if adjustedDest >= sectionTodos.count - 1 {
-            // 移动到最后面
             let lastTodo = sectionTodos.last { $0.id != movedTodo.id }
             let lastSortOrder = lastTodo?.sortOrder ?? 0
             newSortOrder = lastSortOrder + 10
         } else {
-            // 移动到中间：计算相邻元素的 sortOrder 平均值
-            // 找到目标位置前后的元素（排除被移动的元素）
             var neighbors: [Todo] = []
-            for (index, todo) in sectionTodos.enumerated() {
-                if todo.id != movedTodo.id {
-                    neighbors.append(todo)
-                }
+            for (_, todo) in sectionTodos.enumerated() where todo.id != movedTodo.id {
+                neighbors.append(todo)
             }
 
-            // adjustedDest 是移除源元素后的目标位置
             let beforeIndex = adjustedDest - 1
             let afterIndex = adjustedDest
 
@@ -366,23 +399,20 @@ final class TodoStore: ObservableObject {
             let afterOrder = neighbors[safe: afterIndex]?.sortOrder ?? beforeOrder + 20
             newSortOrder = (beforeOrder + afterOrder) / 2
 
-            // 如果平均值相同（说明差值太小），重新编排所有 sortOrder
             if newSortOrder == beforeOrder || newSortOrder == afterOrder {
                 renormalizeSortOrders()
-                // 重新计算
                 if let index = todos.firstIndex(where: { $0.id == movedTodo.id }) {
                     var todo = todos[index]
                     todo.sortOrder = adjustedDest * 10
                     todo.updatedAt = Date()
                     todos[index] = todo
                 }
-                try? save()
+                saveSafely()
                 saveState()
                 return
             }
         }
 
-        // 更新被移动任务的 sortOrder
         if let index = todos.firstIndex(where: { $0.id == movedTodo.id }) {
             var todo = todos[index]
             todo.sortOrder = newSortOrder
@@ -390,11 +420,24 @@ final class TodoStore: ObservableObject {
             todos[index] = todo
         }
 
-        try? save()
+        saveSafely()
         saveState()
+
+        if shouldRenormalizeSortOrders() {
+            renormalizeSortOrders()
+            saveSafely()
+        }
     }
 
     /// 重新编排所有任务的 sortOrder（当差值太小时）
+    private func shouldRenormalizeSortOrders() -> Bool {
+        guard let minOrder = todos.map({ $0.sortOrder }).min(),
+              let maxOrder = todos.map({ $0.sortOrder }).max() else {
+            return false
+        }
+        return maxOrder - minOrder > 10_000 || maxOrder > 1_000_000 || minOrder < -1_000_000
+    }
+
     private func renormalizeSortOrders() {
         for (index, var todo) in todos.enumerated() {
             todo.sortOrder = index * 10
@@ -417,7 +460,7 @@ final class TodoStore: ObservableObject {
         case .replace:
             // 覆盖模式：直接替换所有数据
             todos = newTodos
-            try? save()
+            saveSafely()
             saveState()
             return (added: newTodos.count, skipped: 0)
 
@@ -428,7 +471,7 @@ final class TodoStore: ObservableObject {
 
             // 新任务插入到列表开头
             todos.insert(contentsOf: newUniqueTodos, at: 0)
-            try? save()
+            saveSafely()
             saveState()
 
             return (added: newUniqueTodos.count, skipped: newTodos.count - newUniqueTodos.count)
@@ -444,9 +487,18 @@ final class TodoStore: ObservableObject {
     ///   - tagFilter: 标签筛选（可选）
     /// - Returns: 处理后的任务列表
     func filteredAndSortedTodos(searchText: String = "", priorityFilter: Priority? = nil, tagFilter: UUID? = nil) -> [Todo] {
+        let params = (searchText, priorityFilter, tagFilter)
+        if !cacheDirty,
+           params.0 == lastFilterParams.0,
+           params.1 == lastFilterParams.1,
+           params.2 == lastFilterParams.2,
+           cachedFilteredTodos.count == todos.count,
+           todos.elementsEqual(cachedFilteredTodos) {
+            return cachedFilteredTodos
+        }
+
         var result = todos
 
-        // 1. 过滤
         if !searchText.isEmpty {
             result = result.filter { $0.title.localizedCaseInsensitiveContains(searchText) }
         }
@@ -459,10 +511,6 @@ final class TodoStore: ObservableObject {
             result = result.filter { $0.tagIds.contains(tagId) }
         }
 
-        // 2. 排序
-        // 优先级越高 (sortRank 小) 越靠前
-        // 同优先级下，按 sortOrder 排序（越小越靠前）
-        // sortOrder 相同时，按创建时间排序（越晚越靠前）
         result.sort {
             if $0.priority.sortRank != $1.priority.sortRank {
                 return $0.priority.sortRank < $1.priority.sortRank
@@ -473,6 +521,9 @@ final class TodoStore: ObservableObject {
             return $0.createdAt > $1.createdAt
         }
 
+        cachedFilteredTodos = result
+        lastFilterParams = params
+        cacheDirty = false
         return result
     }
 
@@ -490,7 +541,8 @@ final class TodoStore: ObservableObject {
 
         let tag = Tag(name: name, color: color)
         tags.append(tag)
-        try? save()
+        saveSafely()
+        saveState()
     }
 
     /// 更新标签
@@ -515,7 +567,8 @@ final class TodoStore: ObservableObject {
             tags[index].color = color
         }
 
-        try? save()
+        saveSafely()
+        saveState()
     }
 
     /// 删除标签
@@ -528,7 +581,7 @@ final class TodoStore: ObservableObject {
             todos[index].tagIds.removeAll { $0 == id }
         }
 
-        try? save()
+        saveSafely()
         saveState()
     }
 
@@ -543,7 +596,7 @@ final class TodoStore: ObservableObject {
 
         todos[index].tagIds = tagIds
         todos[index].updatedAt = Date()
-        try? save()
+        saveSafely()
         saveState()
     }
 
@@ -559,7 +612,7 @@ final class TodoStore: ObservableObject {
 
         todos[index].tagIds.append(tagId)
         todos[index].updatedAt = Date()
-        try? save()
+        saveSafely()
         saveState()
     }
 
@@ -574,7 +627,7 @@ final class TodoStore: ObservableObject {
 
         todos[index].tagIds.removeAll { $0 == tagId }
         todos[index].updatedAt = Date()
-        try? save()
+        saveSafely()
         saveState()
     }
 
@@ -583,5 +636,11 @@ final class TodoStore: ObservableObject {
     /// - Returns: 标签对象（不存在时返回 nil）
     func tag(for id: UUID) -> Tag? {
         tags.first { $0.id == id }
+    }
+}
+
+fileprivate extension Array {
+    subscript(safe index: Int) -> Element? {
+        indices.contains(index) ? self[index] : nil
     }
 }

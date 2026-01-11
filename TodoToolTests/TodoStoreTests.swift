@@ -1,4 +1,5 @@
 import XCTest
+import XCTest
 @testable import TodoTool
 
 /// TodoStore 持久化层单元测试
@@ -468,5 +469,32 @@ final class TodoStoreTests: XCTestCase {
         let combined = store.filteredAndSortedTodos(searchText: "任务", priorityFilter: .low)
         XCTAssertEqual(combined.count, 1)
         XCTAssertEqual(combined.first?.title, "低优任务")
+    }
+
+    func testTagCrudAndAssignment() {
+        let store = TodoStore(dataDirectory: testDirectory)
+        store.add(title: "任务")
+        XCTAssertEqual(store.tags.count, 0)
+        store.addTag(name: "工作", color: .blue)
+        XCTAssertEqual(store.tags.count, 1)
+        guard let tagId = store.tags.first?.id, let todoId = store.todos.first?.id else {
+            XCTFail("缺少初始数据")
+            return
+        }
+        store.addTagToTodo(todoId: todoId, tagId: tagId)
+        XCTAssertTrue(store.todos.first?.tagIds.contains(tagId) ?? false)
+        store.deleteTag(id: tagId)
+        XCTAssertTrue(store.tags.isEmpty)
+        XCTAssertFalse(store.todos.first?.tagIds.contains(tagId) ?? true)
+    }
+
+    func testMovePreventsCrossPriority() {
+        let store = TodoStore(dataDirectory: testDirectory)
+        store.add(title: "高优", priority: .high)
+        store.add(title: "低优", priority: .low)
+        let snapshot = store.filteredAndSortedTodos()
+        store.move(from: IndexSet(integer: 0), to: 1, inSection: snapshot)
+        let after = store.filteredAndSortedTodos()
+        XCTAssertEqual(snapshot.map { $0.id }, after.map { $0.id })
     }
 }

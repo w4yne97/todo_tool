@@ -6,40 +6,6 @@
 import SwiftUI
 import AppKit
 
-private enum PriorityFilter: String, CaseIterable, Identifiable {
-    case all
-    case high
-    case medium
-    case low
-    case none
-
-    var id: String { rawValue }
-
-    static var allCases: [PriorityFilter] {
-        [.all, .high, .medium, .low, .none]
-    }
-
-    var displayName: String {
-        switch self {
-        case .all: return "全部"
-        case .high: return "高"
-        case .medium: return "中"
-        case .low: return "低"
-        case .none: return "无"
-        }
-    }
-
-    var priority: Priority? {
-        switch self {
-        case .all: return nil
-        case .high: return .high
-        case .medium: return .medium
-        case .low: return .low
-        case .none: return .none
-        }
-    }
-}
-
 struct ContentView: View {
     /// 状态管理器
     @StateObject private var todoStore = TodoStore()
@@ -118,7 +84,14 @@ struct ContentView: View {
             headerView
 
             // 搜索框
-            searchBarView
+            SearchFilterBar(
+                searchText: $searchText,
+                isSearchFocused: $isSearchFocused,
+                priorityFilter: $priorityFilter,
+                tagFilter: $tagFilter,
+                tags: todoStore.tags,
+                clearSearch: clearSearch
+            )
 
             Divider()
 
@@ -167,7 +140,7 @@ struct ContentView: View {
             focusSearchBar()
         }
         .onReceive(NotificationCenter.default.publisher(for: .setPriority)) { notification in
-            if let priority = notification.object as? Priority {
+            if let priority = notification.userInfo?["priority"] as? Priority {
                 setSelectedTodoPriorityAnimated(priority)
             }
         }
@@ -195,21 +168,22 @@ struct ContentView: View {
     /// 底部统计面板
     private var statsBarView: some View {
         HStack(spacing: 16) {
-            // 多选时显示批量操作按钮
             if selectedTodoIds.count > 1 {
-                batchActionsView
+                BatchActionsBar(
+                    selectedCount: selectedTodoIds.count,
+                    onToggle: toggleSelectedTodoAnimated,
+                    onDelete: deleteSelectedTodoAnimated,
+                    onCancel: { selectedTodoIds = [] }
+                )
             } else {
-                // 待办数量
                 Label("\(totalPending)", systemImage: "circle")
                     .foregroundColor(.primary)
                     .help("待办任务")
 
-                // 已完成数量
                 Label("\(totalCompleted)", systemImage: "checkmark.circle")
                     .foregroundColor(.green)
                     .help("已完成任务")
 
-                // 今日完成数量
                 Label("\(completedToday)", systemImage: "calendar")
                     .foregroundColor(.blue)
                     .help("今日完成")
@@ -217,7 +191,6 @@ struct ContentView: View {
 
             Spacer()
 
-            // 撤销/重做按钮
             HStack(spacing: 8) {
                 Button(action: undoAnimated) {
                     Image(systemName: "arrow.uturn.backward")
@@ -243,47 +216,9 @@ struct ContentView: View {
         .animation(.easeInOut(duration: 0.2), value: selectedTodoIds.count > 1)
     }
 
-    /// 批量操作按钮组
-    private var batchActionsView: some View {
-        HStack(spacing: 12) {
-            Text("已选 \(selectedTodoIds.count) 项")
-                .foregroundColor(.secondary)
-
-            Divider()
-                .frame(height: 14)
-
-            // 批量完成/取消完成
-            Button {
-                toggleSelectedTodoAnimated()
-            } label: {
-                Image(systemName: "checkmark.circle")
-            }
-            .buttonStyle(.plain)
-            .help("切换完成状态 (⌘⏎)")
-
-            // 批量删除
-            Button {
-                deleteSelectedTodoAnimated()
-            } label: {
-                Image(systemName: "trash")
-                    .foregroundColor(.red)
-            }
-            .buttonStyle(.plain)
-            .help("删除选中 (⌘⌫)")
-
-            // 取消选择
-            Button {
-                selectedTodoIds = []
-            } label: {
-                Image(systemName: "xmark.circle")
-            }
-            .buttonStyle(.plain)
-            .help("取消选择")
-        }
-    }
-
     /// 顶部标题栏
     private var headerView: some View {
+
         HStack {
             Text("待办事项")
                 .font(.title2)
@@ -301,161 +236,12 @@ struct ContentView: View {
         .padding()
     }
 
-    /// 搜索框
-    private var searchBarView: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass")
-                .foregroundColor(.secondary)
 
-            TextField("搜索任务…", text: $searchText)
-                .textFieldStyle(.plain)
-                .focused($isSearchFocused)
-                .onExitCommand {
-                    // Esc 清空搜索并取消焦点
-                    searchText = ""
-                    isSearchFocused = false
-                    isListFocused = true
-                }
 
-            // 清除按钮
-            if !searchText.isEmpty {
-                Button(action: clearSearch) {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.secondary)
-                }
-                .buttonStyle(.plain)
-                .transition(.opacity)
-            }
-
-            Divider()
-                .frame(height: 16)
-
-            priorityFilterMenu
-
-            // 标签过滤菜单（仅当有标签时显示）
-            if !todoStore.tags.isEmpty {
-                Divider()
-                    .frame(height: 16)
-
-                tagFilterMenu
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(Color.primary.opacity(0.05))
-        .cornerRadius(8)
-        .padding(.horizontal)
-        .padding(.bottom, 8)
-        .animation(.easeInOut(duration: 0.15), value: searchText.isEmpty)
-    }
-
-    private var priorityFilterMenu: some View {
-        Menu {
-            ForEach(PriorityFilter.allCases) { filter in
-                Button {
-                    priorityFilter = filter
-                } label: {
-                    HStack(spacing: 8) {
-                        if let priority = filter.priority {
-                            Circle()
-                                .fill(priorityTint(priority))
-                                .frame(width: 8, height: 8)
-                        } else {
-                            Image(systemName: "line.3.horizontal.decrease.circle")
-                        }
-                        Text(filter.displayName)
-                        if filter == priorityFilter {
-                            Spacer()
-                            Image(systemName: "checkmark")
-                        }
-                    }
-                }
-            }
-        } label: {
-            HStack(spacing: 6) {
-                if let priority = priorityFilter.priority {
-                    Circle()
-                        .fill(priorityTint(priority))
-                        .frame(width: 8, height: 8)
-                } else {
-                    Image(systemName: "line.3.horizontal.decrease.circle")
-                        .foregroundColor(.secondary)
-                }
-                Text("优先级 \(priorityFilter.displayName)")
-                    .font(.subheadline)
-                    .foregroundColor(.primary)
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(
-                Capsule()
-                    .fill(Color.primary.opacity(priorityFilter == .all ? 0.06 : 0.12))
-            )
-        }
-        .menuStyle(.borderlessButton)
-    }
-
-    /// 标签过滤菜单
-    private var tagFilterMenu: some View {
-        Menu {
-            Button {
-                tagFilter = nil
-            } label: {
-                HStack {
-                    Text("全部标签")
-                    if tagFilter == nil {
-                        Spacer()
-                        Image(systemName: "checkmark")
-                    }
-                }
-            }
-
-            Divider()
-
-            ForEach(todoStore.tags) { tag in
-                Button {
-                    tagFilter = tag.id
-                } label: {
-                    HStack(spacing: 8) {
-                        Circle()
-                            .fill(tag.color.color)
-                            .frame(width: 8, height: 8)
-                        Text(tag.name)
-                        if tagFilter == tag.id {
-                            Spacer()
-                            Image(systemName: "checkmark")
-                        }
-                    }
-                }
-            }
-        } label: {
-            HStack(spacing: 6) {
-                if let tagId = tagFilter, let tag = todoStore.tag(for: tagId) {
-                    Circle()
-                        .fill(tag.color.color)
-                        .frame(width: 8, height: 8)
-                    Text(tag.name)
-                        .font(.subheadline)
-                        .foregroundColor(.primary)
-                } else {
-                    Image(systemName: "tag")
-                        .foregroundColor(.secondary)
-                    Text("标签")
-                        .font(.subheadline)
-                        .foregroundColor(.primary)
-                }
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(
-                Capsule()
-                    .fill(Color.primary.opacity(tagFilter == nil ? 0.06 : 0.12))
-            )
-        }
-        .menuStyle(.borderlessButton)
-    }
+            
 
     /// 搜索无结果视图
+
     private var noResultsView: some View {
         VStack(spacing: 12) {
             Spacer()
@@ -491,35 +277,7 @@ struct ContentView: View {
             if !pendingTodos.isEmpty {
                 Section {
                     ForEach(pendingTodos) { todo in
-                        TodoRow(
-                            todo: todo,
-                            onToggle: { toggleTodoAnimated(id: todo.id) },
-                            onUpdate: { newTitle in
-                                updateTodoAnimated(id: todo.id, title: newTitle)
-                            },
-                            onDelete: {
-                                deleteTodoAnimated(id: todo.id)
-                            },
-                            onEditEnd: {
-                                // 编辑结束后恢复 List 焦点和选中状态
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                                    selectedTodoIds = [todo.id]
-                                    isListFocused = true
-                                }
-                            },
-                            onSetPriority: { priority in
-                                setTodoPriorityAnimated(id: todo.id, priority: priority)
-                            },
-                            onSetDueDate: { dueDate in
-                                setTodoDueDateAnimated(id: todo.id, dueDate: dueDate)
-                            },
-                            availableTags: todoStore.tags,
-                            onToggleTag: { tagId in
-                                toggleTagAnimated(todoId: todo.id, tagId: tagId)
-                            },
-                            isEditingExternally: editingBinding(for: todo.id)
-                        )
-                        .tag(todo.id)
+                        todoRow(for: todo)
                     }
                     .onDelete { indexSet in
                         deleteTodosAnimated(from: pendingTodos, at: indexSet)
@@ -538,35 +296,7 @@ struct ContentView: View {
             if !completedTodos.isEmpty {
                 Section {
                     ForEach(completedTodos) { todo in
-                        TodoRow(
-                            todo: todo,
-                            onToggle: { toggleTodoAnimated(id: todo.id) },
-                            onUpdate: { newTitle in
-                                updateTodoAnimated(id: todo.id, title: newTitle)
-                            },
-                            onDelete: {
-                                deleteTodoAnimated(id: todo.id)
-                            },
-                            onEditEnd: {
-                                // 编辑结束后恢复 List 焦点和选中状态
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                                    selectedTodoIds = [todo.id]
-                                    isListFocused = true
-                                }
-                            },
-                            onSetPriority: { priority in
-                                setTodoPriorityAnimated(id: todo.id, priority: priority)
-                            },
-                            onSetDueDate: { dueDate in
-                                setTodoDueDateAnimated(id: todo.id, dueDate: dueDate)
-                            },
-                            availableTags: todoStore.tags,
-                            onToggleTag: { tagId in
-                                toggleTagAnimated(todoId: todo.id, tagId: tagId)
-                            },
-                            isEditingExternally: editingBinding(for: todo.id)
-                        )
-                        .tag(todo.id)
+                        todoRow(for: todo)
                     }
                     .onDelete { indexSet in
                         deleteTodosAnimated(from: completedTodos, at: indexSet)
@@ -587,6 +317,37 @@ struct ContentView: View {
         .focusable()
         .focused($isListFocused)
         .animation(.easeInOut(duration: 0.25), value: todoStore.todos)
+    }
+
+    private func todoRow(for todo: Todo) -> some View {
+        TodoRow(
+            todo: todo,
+            onToggle: { toggleTodoAnimated(id: todo.id) },
+            onUpdate: { newTitle in
+                updateTodoAnimated(id: todo.id, title: newTitle)
+            },
+            onDelete: {
+                deleteTodoAnimated(id: todo.id)
+            },
+            onEditEnd: {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                    selectedTodoIds = [todo.id]
+                    isListFocused = true
+                }
+            },
+            onSetPriority: { priority in
+                setTodoPriorityAnimated(id: todo.id, priority: priority)
+            },
+            onSetDueDate: { dueDate in
+                setTodoDueDateAnimated(id: todo.id, dueDate: dueDate)
+            },
+            availableTags: todoStore.tags,
+            onToggleTag: { tagId in
+                toggleTagAnimated(todoId: todo.id, tagId: tagId)
+            },
+            isEditingExternally: editingBinding(for: todo.id)
+        )
+        .tag(todo.id)
     }
 
     /// 空状态视图
@@ -979,6 +740,14 @@ struct ContentView: View {
 
     /// 移动任务到新位置（拖拽排序，带动画）
     private func moveTodosAnimated(from source: IndexSet, to destination: Int, inSection sectionTodos: [Todo]) {
+        guard let sourceIndex = source.first,
+              sourceIndex < sectionTodos.count else { return }
+        let movedPriority = sectionTodos[sourceIndex].priority
+        let adjustedDest = destination > sourceIndex ? destination - 1 : destination
+        if adjustedDest >= 0, adjustedDest < sectionTodos.count {
+            let targetPriority = sectionTodos[adjustedDest].priority
+            guard targetPriority == movedPriority else { return }
+        }
         withAnimation(.easeInOut(duration: 0.25)) {
             todoStore.move(from: source, to: destination, inSection: sectionTodos)
         }
@@ -1005,10 +774,17 @@ struct ContentView: View {
     /// 清除所有已完成的任务（⌘⇧K 快捷键）
     private func clearCompletedAnimated() {
         guard totalCompleted > 0 else { return }
+        let alert = NSAlert()
+        alert.messageText = "确认清除已完成？"
+        alert.informativeText = "此操作将删除所有已完成任务，可通过撤销恢复。"
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "确定")
+        alert.addButton(withTitle: "取消")
+        let response = alert.runModal()
+        guard response == .alertFirstButtonReturn else { return }
         withAnimation(.easeInOut(duration: 0.25)) {
             todoStore.clearCompleted()
         }
-        // 清除可能选中的已完成任务
         selectedTodoIds = selectedTodoIds.filter { id in
             todoStore.todos.contains { $0.id == id }
         }

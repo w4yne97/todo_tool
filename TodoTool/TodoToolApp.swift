@@ -35,7 +35,7 @@ enum AppearanceMode: String, CaseIterable {
 @main
 struct TodoToolApp: App {
     /// 外观模式偏好（持久化到 UserDefaults）
-    @AppStorage("appearanceMode") private var appearanceMode: String = AppearanceMode.system.rawValue
+    @AppStorage("com.todotool.appearanceMode") private var appearanceMode: String = AppearanceMode.system.rawValue
 
     /// 当前外观模式
     private var currentMode: AppearanceMode {
@@ -130,7 +130,7 @@ struct TodoToolApp: App {
                 // 优先级快捷键
                 Menu("优先级") {
                     Button("无优先级") {
-                        NotificationCenter.default.post(name: .setPriority, object: Priority.none)
+                        NotificationCenter.default.post(name: .setPriority, object: nil, userInfo: ["priority": Priority.none])
                     }
                     .keyboardShortcut("0", modifiers: .command)
 
