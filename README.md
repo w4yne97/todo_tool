@@ -1,8 +1,8 @@
-# TodoTool
+# Quadra
 
 > 极简 macOS 待办事项应用 —— 零依赖、本地优先、秒开秒用
 
-一款专为 macOS 设计的原生待办事项管理工具，采用 SwiftUI 构建，无需联网，数据完全存储在本地。
+**Quadra** 是一款专为 macOS 设计的原生待办事项管理工具，采用 SwiftUI 构建，无需联网，数据完全存储在本地。名称源自 "Quadrant"（象限），体现其核心的四象限任务分类功能。
 
 ---
 
@@ -79,20 +79,20 @@
 
 1. 克隆仓库
 ```bash
-git clone https://github.com/your-username/TodoTool.git
-cd TodoTool
+git clone https://github.com/your-username/Quadra.git
+cd Quadra
 ```
 
 2. 使用 Xcode 打开项目
 ```bash
-open TodoTool.xcodeproj
+open Quadra.xcodeproj
 ```
 
 3. 构建并运行（`⌘R`）
 
 或使用命令行构建：
 ```bash
-xcodebuild -scheme TodoTool -configuration Release build
+xcodebuild -scheme Quadra -configuration Release build
 ```
 
 ---
@@ -114,15 +114,15 @@ xcodebuild -scheme TodoTool -configuration Release build
                    ▼
 ┌─────────────────────────────────────────────┐
 │              JSON File                       │
-│  ~/Library/.../TodoTool/data.json           │
+│  ~/Library/.../Quadra/data.json             │
 └─────────────────────────────────────────────┘
 ```
 
 ### 目录结构
 
 ```
-TodoTool/
-├── TodoToolApp.swift       # 应用入口 + 菜单命令
+Quadra/
+├── QuadraApp.swift         # 应用入口 + 菜单命令
 ├── Notifications.swift     # 通知定义（菜单 ↔ 视图通信）
 ├── Models/
 │   ├── Todo.swift          # 任务模型
@@ -142,7 +142,7 @@ TodoTool/
 
 ## 数据存储
 
-数据文件位置：`~/Library/Application Support/TodoTool/`
+数据文件位置：`~/Library/Application Support/Quadra/`
 
 ```json
 {
@@ -183,7 +183,7 @@ TodoTool/
 ### 运行测试
 
 ```bash
-xcodebuild test -scheme TodoTool -destination 'platform=macOS'
+xcodebuild test -scheme Quadra -destination 'platform=macOS'
 ```
 
 ### 设计原则
@@ -193,6 +193,12 @@ xcodebuild test -scheme TodoTool -destination 'platform=macOS'
 3. **原子写入** — 保证数据完整性，防止丢失
 4. **单一数据源** — TodoStore 持有唯一真相
 5. **简洁架构** — View → Store → File 三层结构
+
+---
+
+## 为什么叫 Quadra？
+
+**Quadra** 源自拉丁语 "Quadrant"（象限），体现了应用的核心特色——艾森豪威尔矩阵四象限任务分类法。这个名字简短、现代、富有几何美感，同时暗示了应用帮助用户将混乱的任务按重要性和紧急性分类整理的能力。
 
 ---
 

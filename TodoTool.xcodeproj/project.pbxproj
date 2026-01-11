@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A1000001229F00200 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1000001229F00201 /* Assets.xcassets */; };
 		A1000001229F00001 /* TodoToolApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000001229F00011 /* TodoToolApp.swift */; };
 		A1000001229F00002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000001229F00012 /* ContentView.swift */; };
 		A1000001229F00003 /* Todo.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000001229F00013 /* Todo.swift */; };
@@ -36,6 +37,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		A1000001229F00201 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A1000001229F00010 /* TodoTool.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TodoTool.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A1000001229F00011 /* TodoToolApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodoToolApp.swift; sourceTree = "<group>"; };
 		A1000001229F00012 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -90,6 +92,7 @@
 				A1000001229F00011 /* TodoToolApp.swift */,
 				A1000001229F0001D /* Notifications.swift */,
 				A1000001229F00017 /* TodoTool.entitlements */,
+				A1000001229F00201 /* Assets.xcassets */,
 				A1000001229F00033 /* Models */,
 				A1000001229F00034 /* Store */,
 				A1000001229F00035 /* Views */,
@@ -229,6 +232,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A1000001229F00200 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

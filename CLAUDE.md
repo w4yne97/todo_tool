@@ -1,6 +1,8 @@
-# TodoTool 项目文档
+# Quadra 项目文档
 
-> 极简 macOS Todo 应用 —— 零依赖、本地优先、秒开秒用
+> 极简 macOS 待办事项应用 —— 零依赖、本地优先、秒开秒用
+
+**Quadra** 源自 "Quadrant"（象限），体现其核心的四象限任务分类功能。
 
 ---
 
@@ -24,7 +26,7 @@
                    ▼
 ┌─────────────────────────────────────────────┐
 │              JSON File                       │
-│  ~/Library/.../TodoTool/data.json           │
+│  ~/Library/.../Quadra/data.json             │
 └─────────────────────────────────────────────┘
 ```
 
@@ -35,10 +37,12 @@
 ## 目录结构
 
 ```
-TodoTool/
-├── TodoToolApp.swift       # 应用入口 + 菜单栏命令
-├── TodoTool.entitlements   # App Sandbox 配置
+Quadra/
+├── QuadraApp.swift         # 应用入口 + 菜单栏命令
+├── Quadra.entitlements     # App Sandbox 配置
 ├── Notifications.swift     # 通知名称定义（菜单 ↔ 视图通信）
+├── Assets.xcassets/        # 资源目录（图标、颜色等）
+│   └── AppIcon.appiconset/ # 应用图标（16-1024pt 多尺寸）
 ├── Models/
 │   ├── Todo.swift          # 任务模型（优先级、到期日期、排序、标签、四象限）
 │   ├── TodoData.swift      # 数据容器（版本化 JSON 结构）
@@ -127,7 +131,7 @@ TodoTool/
 
 ## 数据存储
 
-**位置**：`~/Library/Application Support/TodoTool/`
+**位置**：`~/Library/Application Support/Quadra/`
 
 ```
 data.json          # 主数据文件
@@ -241,7 +245,7 @@ data.json.tmp      # 写入中的临时文件
 ### 新增文件
 
 ```
-TodoTool/
+Quadra/
 ├── Models/
 │   └── Quadrant.swift          # 四象限枚举
 └── Views/
@@ -264,4 +268,4 @@ TodoTool/
 
 ---
 
-*文档版本: v3.1 | 更新时间: 2026-01-11 (Phase 8 完成)*
+*文档版本: v4.0 | 更新时间: 2026-01-11 (重命名为 Quadra)*
