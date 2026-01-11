@@ -132,6 +132,28 @@ struct Todo: Codable, Identifiable, Equatable {
         let hoursUntilDue = dueDate.timeIntervalSince(Date()) / 3600
         return hoursUntilDue <= 24
     }
+
+    // MARK: - 四象限分类（艾森豪威尔矩阵）
+
+    /// 是否为重要任务（高/中优先级视为重要）
+    var isImportant: Bool {
+        priority == .high || priority == .medium
+    }
+
+    /// 是否为紧急任务（今天到期或已过期视为紧急）
+    var isUrgent: Bool {
+        guard let dueDate = dueDate else { return false }
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let dueDateStart = calendar.startOfDay(for: dueDate)
+        // 今天或之前到期都算紧急
+        return dueDateStart <= today
+    }
+
+    /// 任务所属象限
+    var quadrant: Quadrant {
+        Quadrant.from(isImportant: isImportant, isUrgent: isUrgent)
+    }
 }
 
 // MARK: - JSON 编解码配置

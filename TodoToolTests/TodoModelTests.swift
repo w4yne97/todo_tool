@@ -251,4 +251,112 @@ final class TodoModelTests: XCTestCase {
         XCTAssertFalse(dueSoon.isOverdue)
         XCTAssertTrue(dueSoon.isDueSoon)
     }
+
+    // MARK: - 四象限分类测试
+
+    func testQuadrantEnumProperties() {
+        // 测试象限基本属性
+        XCTAssertEqual(Quadrant.urgentImportant.shortName, "紧急重要")
+        XCTAssertEqual(Quadrant.notUrgentImportant.shortName, "重要")
+        XCTAssertEqual(Quadrant.urgentNotImportant.shortName, "紧急")
+        XCTAssertEqual(Quadrant.notUrgentNotImportant.shortName, "其他")
+    }
+
+    func testQuadrantFromImportanceAndUrgency() {
+        // 测试从重要性和紧急性创建象限
+        XCTAssertEqual(Quadrant.from(isImportant: true, isUrgent: true), .urgentImportant)
+        XCTAssertEqual(Quadrant.from(isImportant: true, isUrgent: false), .notUrgentImportant)
+        XCTAssertEqual(Quadrant.from(isImportant: false, isUrgent: true), .urgentNotImportant)
+        XCTAssertEqual(Quadrant.from(isImportant: false, isUrgent: false), .notUrgentNotImportant)
+    }
+
+    func testQuadrantIsImportantAndIsUrgent() {
+        // 测试象限的重要性和紧急性属性
+        XCTAssertTrue(Quadrant.urgentImportant.isImportant)
+        XCTAssertTrue(Quadrant.urgentImportant.isUrgent)
+
+        XCTAssertTrue(Quadrant.notUrgentImportant.isImportant)
+        XCTAssertFalse(Quadrant.notUrgentImportant.isUrgent)
+
+        XCTAssertFalse(Quadrant.urgentNotImportant.isImportant)
+        XCTAssertTrue(Quadrant.urgentNotImportant.isUrgent)
+
+        XCTAssertFalse(Quadrant.notUrgentNotImportant.isImportant)
+        XCTAssertFalse(Quadrant.notUrgentNotImportant.isUrgent)
+    }
+
+    func testQuadrantGridOrder() {
+        // 测试网格排列顺序（2x2 布局）
+        let order = Quadrant.gridOrder
+        XCTAssertEqual(order.count, 4)
+        XCTAssertEqual(order[0], .urgentImportant)       // 左上
+        XCTAssertEqual(order[1], .notUrgentImportant)    // 右上
+        XCTAssertEqual(order[2], .urgentNotImportant)    // 左下
+        XCTAssertEqual(order[3], .notUrgentNotImportant) // 右下
+    }
+
+    func testTodoIsImportant() {
+        // 高优先级 → 重要
+        let highPriority = Todo(title: "高优先级", priority: .high)
+        XCTAssertTrue(highPriority.isImportant)
+
+        // 中优先级 → 重要
+        let mediumPriority = Todo(title: "中优先级", priority: .medium)
+        XCTAssertTrue(mediumPriority.isImportant)
+
+        // 低优先级 → 不重要
+        let lowPriority = Todo(title: "低优先级", priority: .low)
+        XCTAssertFalse(lowPriority.isImportant)
+
+        // 无优先级 → 不重要
+        let noPriority = Todo(title: "无优先级", priority: .none)
+        XCTAssertFalse(noPriority.isImportant)
+    }
+
+    func testTodoIsUrgent() {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+
+        // 今天到期 → 紧急
+        let dueToday = Todo(title: "今天到期", dueDate: today)
+        XCTAssertTrue(dueToday.isUrgent)
+
+        // 过期 → 紧急
+        let overdue = Todo(title: "已过期", dueDate: today.addingTimeInterval(-86400))
+        XCTAssertTrue(overdue.isUrgent)
+
+        // 明天到期 → 不紧急
+        let dueTomorrow = Todo(title: "明天到期", dueDate: today.addingTimeInterval(86400))
+        XCTAssertFalse(dueTomorrow.isUrgent)
+
+        // 无到期日 → 不紧急
+        let noDueDate = Todo(title: "无到期日")
+        XCTAssertFalse(noDueDate.isUrgent)
+    }
+
+    func testTodoQuadrantClassification() {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let tomorrow = today.addingTimeInterval(86400)
+
+        // Q1: 重要且紧急（高优先级 + 今天到期）
+        let q1 = Todo(title: "Q1任务", priority: .high, dueDate: today)
+        XCTAssertEqual(q1.quadrant, .urgentImportant)
+
+        // Q2: 重要但不紧急（高优先级 + 明天到期）
+        let q2 = Todo(title: "Q2任务", priority: .high, dueDate: tomorrow)
+        XCTAssertEqual(q2.quadrant, .notUrgentImportant)
+
+        // Q3: 不重要但紧急（低优先级 + 今天到期）
+        let q3 = Todo(title: "Q3任务", priority: .low, dueDate: today)
+        XCTAssertEqual(q3.quadrant, .urgentNotImportant)
+
+        // Q4: 不重要且不紧急（低优先级 + 明天到期）
+        let q4 = Todo(title: "Q4任务", priority: .low, dueDate: tomorrow)
+        XCTAssertEqual(q4.quadrant, .notUrgentNotImportant)
+
+        // 无优先级无到期日 → Q4
+        let defaultTodo = Todo(title: "默认任务")
+        XCTAssertEqual(defaultTodo.quadrant, .notUrgentNotImportant)
+    }
 }

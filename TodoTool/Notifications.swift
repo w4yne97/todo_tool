@@ -57,6 +57,9 @@ extension Notification.Name {
 
     /// 管理标签通知
     static let manageTags = Notification.Name("com.todotool.manageTags")
+
+    /// 切换视图模式通知（列表/四象限）
+    static let toggleViewMode = Notification.Name("com.todotool.toggleViewMode")
 }
 
 // MARK: - 导入请求数据

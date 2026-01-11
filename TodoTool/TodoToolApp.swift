@@ -167,6 +167,13 @@ struct TodoToolApp: App {
 
             // 视图菜单：外观设置
             CommandMenu("视图") {
+                Button("切换视图模式") {
+                    NotificationCenter.default.post(name: .toggleViewMode, object: nil)
+                }
+                .keyboardShortcut("q", modifiers: [.command, .shift])
+
+                Divider()
+
                 Menu("外观") {
                     ForEach(AppearanceMode.allCases, id: \.self) { mode in
                         Button {

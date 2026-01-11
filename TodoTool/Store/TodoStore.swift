@@ -527,6 +527,41 @@ final class TodoStore: ObservableObject {
         return result
     }
 
+    // MARK: - 四象限分类
+
+    /// 按四象限分组的未完成任务
+    /// - Returns: 以 Quadrant 为键的任务分组字典
+    var todosByQuadrant: [Quadrant: [Todo]] {
+        let pendingTodos = todos.filter { !$0.isCompleted }
+        return Dictionary(grouping: pendingTodos) { $0.quadrant }
+    }
+
+    /// 获取指定象限的任务数量
+    /// - Parameter quadrant: 目标象限
+    /// - Returns: 该象限的未完成任务数
+    func todoCount(for quadrant: Quadrant) -> Int {
+        todosByQuadrant[quadrant]?.count ?? 0
+    }
+
+    /// 将任务移动到目标象限（自动更新 priority 和 dueDate）
+    /// - Parameters:
+    ///   - id: 任务 ID
+    ///   - targetQuadrant: 目标象限
+    func moveTodo(id: UUID, to targetQuadrant: Quadrant) {
+        guard let index = todos.firstIndex(where: { $0.id == id }) else { return }
+
+        // 根据目标象限更新属性
+        let newPriority: Priority = targetQuadrant.isImportant ? .high : .none
+        let newDueDate: Date? = targetQuadrant.isUrgent ? Calendar.current.startOfDay(for: Date()) : nil
+
+        todos[index].priority = newPriority
+        todos[index].dueDate = newDueDate
+        todos[index].updatedAt = Date()
+
+        saveState()
+        saveSafely()
+    }
+
     // MARK: - 标签管理
 
     /// 添加新标签

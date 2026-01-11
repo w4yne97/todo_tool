@@ -6,9 +6,37 @@
 import SwiftUI
 import AppKit
 
+/// 视图模式枚举
+enum ViewMode: String, CaseIterable {
+    case list = "list"
+    case quadrant = "quadrant"
+
+    var displayName: String {
+        switch self {
+        case .list: return "列表视图"
+        case .quadrant: return "四象限视图"
+        }
+    }
+
+    var iconName: String {
+        switch self {
+        case .list: return "list.bullet"
+        case .quadrant: return "square.grid.2x2"
+        }
+    }
+
+    /// 切换到另一个模式
+    mutating func toggle() {
+        self = self == .list ? .quadrant : .list
+    }
+}
+
 struct ContentView: View {
     /// 状态管理器
     @StateObject private var todoStore = TodoStore()
+
+    /// 当前显示的视图模式
+    @State private var viewMode: ViewMode = .list
 
     /// 新任务输入状态
     @State private var isAddingTask = false
@@ -79,43 +107,18 @@ struct ContentView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // 顶部标题栏
-            headerView
-
-            // 搜索框
-            SearchFilterBar(
-                searchText: $searchText,
-                isSearchFocused: $isSearchFocused,
-                priorityFilter: $priorityFilter,
-                tagFilter: $tagFilter,
-                tags: todoStore.tags,
-                clearSearch: clearSearch
-            )
-
-            Divider()
-
-            // 主内容区 - 带过渡动画
-            if todoStore.todos.isEmpty {
-                emptyStateView
-                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
-            } else if filteredTodos.isEmpty {
-                // 搜索无结果
-                noResultsView
-                    .transition(.opacity)
-            } else {
-                taskListView
-                    .transition(.opacity)
-            }
-
-            // 底部统计面板
-            if !todoStore.todos.isEmpty {
-                Divider()
-                statsBarView
+        Group {
+            switch viewMode {
+            case .list:
+                listModeView
+            case .quadrant:
+                QuadrantView(
+                    todoStore: todoStore,
+                    onDismiss: { withAnimation { viewMode = .list } }
+                )
             }
         }
-        .animation(.easeInOut(duration: 0.3), value: todoStore.todos.isEmpty)
-        .animation(.easeInOut(duration: 0.2), value: filteredTodos.count)
+        .animation(.easeInOut(duration: 0.3), value: viewMode)
         .frame(minWidth: 400, minHeight: 600)
         .sheet(isPresented: $isAddingTask) {
             addTaskSheet
@@ -159,8 +162,54 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .manageTags)) { _ in
             isManagingTags = true
         }
+        .onReceive(NotificationCenter.default.publisher(for: .toggleViewMode)) { _ in
+            withAnimation { viewMode.toggle() }
+        }
         // Enter 进入编辑模式（⌘+Enter 切换完成状态由菜单命令处理）
         .onKeyPress(.return) { handleEditShortcut() }
+    }
+
+    // MARK: - 列表模式主视图
+
+    /// 列表模式视图
+    private var listModeView: some View {
+        VStack(spacing: 0) {
+            // 顶部标题栏
+            headerView
+
+            // 搜索框
+            SearchFilterBar(
+                searchText: $searchText,
+                isSearchFocused: $isSearchFocused,
+                priorityFilter: $priorityFilter,
+                tagFilter: $tagFilter,
+                tags: todoStore.tags,
+                clearSearch: clearSearch
+            )
+
+            Divider()
+
+            // 主内容区 - 带过渡动画
+            if todoStore.todos.isEmpty {
+                emptyStateView
+                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
+            } else if filteredTodos.isEmpty {
+                // 搜索无结果
+                noResultsView
+                    .transition(.opacity)
+            } else {
+                taskListView
+                    .transition(.opacity)
+            }
+
+            // 底部统计面板
+            if !todoStore.todos.isEmpty {
+                Divider()
+                statsBarView
+            }
+        }
+        .animation(.easeInOut(duration: 0.3), value: todoStore.todos.isEmpty)
+        .animation(.easeInOut(duration: 0.2), value: filteredTodos.count)
     }
 
     // MARK: - 子视图
@@ -225,6 +274,15 @@ struct ContentView: View {
                 .fontWeight(.semibold)
 
             Spacer()
+
+            // 视图模式切换按钮
+            Button(action: { withAnimation { viewMode.toggle() } }) {
+                Image(systemName: viewMode == .list ? "square.grid.2x2" : "list.bullet")
+                    .font(.title3)
+            }
+            .buttonStyle(.plain)
+            .foregroundColor(.secondary)
+            .help(viewMode == .list ? "切换到四象限视图 (⌘⇧Q)" : "切换到列表视图 (⌘⇧Q)")
 
             Button(action: openAddTaskSheet) {
                 Image(systemName: "plus.circle.fill")
