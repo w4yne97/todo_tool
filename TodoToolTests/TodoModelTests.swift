@@ -11,6 +11,7 @@ final class TodoModelTests: XCTestCase {
         
         XCTAssertFalse(todo.id.uuidString.isEmpty)
         XCTAssertEqual(todo.title, "测试任务")
+        XCTAssertEqual(todo.detail, "")
         XCTAssertFalse(todo.isCompleted)
         XCTAssertNil(todo.completedAt)
         XCTAssertEqual(todo.createdAt, todo.updatedAt)
@@ -22,6 +23,7 @@ final class TodoModelTests: XCTestCase {
         let todo = Todo(
             id: id,
             title: "完整参数任务",
+            detail: "详情",
             isCompleted: true,
             createdAt: now,
             completedAt: now,
@@ -30,6 +32,7 @@ final class TodoModelTests: XCTestCase {
         
         XCTAssertEqual(todo.id, id)
         XCTAssertEqual(todo.title, "完整参数任务")
+        XCTAssertEqual(todo.detail, "详情")
         XCTAssertTrue(todo.isCompleted)
         XCTAssertEqual(todo.createdAt, now)
         XCTAssertEqual(todo.completedAt, now)
@@ -45,6 +48,7 @@ final class TodoModelTests: XCTestCase {
         let todo = Todo(
             id: id,
             title: "编码测试",
+            detail: "编码详情",
             isCompleted: false,
             createdAt: date,
             completedAt: nil,
@@ -56,6 +60,7 @@ final class TodoModelTests: XCTestCase {
         
         XCTAssertTrue(jsonString.contains("\"id\" : \"12345678-1234-1234-1234-123456789012\""))
         XCTAssertTrue(jsonString.contains("\"title\" : \"编码测试\""))
+        XCTAssertTrue(jsonString.contains("\"detail\" : \"编码详情\""))
         XCTAssertTrue(jsonString.contains("\"isCompleted\" : false"))
         XCTAssertTrue(jsonString.contains("2026-01-09T10:00:00"))
     }
@@ -65,6 +70,7 @@ final class TodoModelTests: XCTestCase {
         {
             "id": "12345678-1234-1234-1234-123456789012",
             "title": "解码测试",
+            "detail": "解码描述",
             "isCompleted": true,
             "createdAt": "2026-01-09T10:00:00Z",
             "completedAt": "2026-01-09T14:30:00Z",
@@ -76,14 +82,16 @@ final class TodoModelTests: XCTestCase {
         let todo = try Todo.decoder.decode(Todo.self, from: data)
         
         XCTAssertEqual(todo.id.uuidString, "12345678-1234-1234-1234-123456789012")
-        XCTAssertEqual(todo.title, "解码测试")
-        XCTAssertTrue(todo.isCompleted)
-        XCTAssertNotNil(todo.completedAt)
+        XCTAssertEqual(todo.title, "旧版任务")
+        XCTAssertEqual(todo.detail, "")
+        XCTAssertEqual(todo.priority, .none) // 默认为无优先级
     }
+
     
     func testTodoRoundTrip() throws {
         let original = Todo(
             title: "往返测试",
+            detail: "往返详情",
             isCompleted: true,
             completedAt: Date()
         )
@@ -93,6 +101,7 @@ final class TodoModelTests: XCTestCase {
         
         XCTAssertEqual(original.id, decoded.id)
         XCTAssertEqual(original.title, decoded.title)
+        XCTAssertEqual(original.detail, decoded.detail)
         XCTAssertEqual(original.isCompleted, decoded.isCompleted)
         // 日期比较允许毫秒级误差（JSON 编码可能有精度损失）
         if let originalCompleted = original.completedAt,

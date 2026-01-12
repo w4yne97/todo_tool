@@ -208,16 +208,20 @@ final class TodoStore: ObservableObject {
     /// 添加新任务
     /// - Parameters:
     ///   - title: 任务标题
+    ///   - detail: 任务详情
     ///   - priority: 任务优先级
-    func add(title: String, priority: Priority = .none) {
-        guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-              title.count <= 200 else {
+    func add(title: String, detail: String = "", priority: Priority = .none) {
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedTitle.isEmpty, trimmedTitle.count <= 200 else {
             return
         }
+
+        let trimmedDetail = detail.trimmingCharacters(in: .whitespacesAndNewlines)
+        let limitedDetail = String(trimmedDetail.prefix(2000))
         
         // 新任务的 sortOrder 设为最小值（比现有最小值还小）
         let minSortOrder = todos.map { $0.sortOrder }.min() ?? 0
-        let todo = Todo(title: title, priority: priority, sortOrder: minSortOrder - 1)
+        let todo = Todo(title: trimmedTitle, detail: limitedDetail, priority: priority, sortOrder: minSortOrder - 1)
         todos.insert(todo, at: 0) // 最新的在最前
         saveSafely()
         saveState()
@@ -298,13 +302,14 @@ final class TodoStore: ObservableObject {
         saveState()
     }
     
-    /// 更新任务标题
+    /// 更新任务标题和详情
     /// - Parameters:
     ///   - id: 任务 ID
     ///   - title: 新标题
-    func update(id: UUID, title: String) {
-        guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-              title.count <= 200 else {
+    ///   - detail: 新详情（可选，nil 表示不修改）
+    func update(id: UUID, title: String, detail: String? = nil) {
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedTitle.isEmpty, trimmedTitle.count <= 200 else {
             return
         }
         
@@ -313,7 +318,29 @@ final class TodoStore: ObservableObject {
         }
         
         var todo = todos[index]
-        todo.title = title
+        todo.title = trimmedTitle
+        if let detail = detail {
+            let trimmedDetail = detail.trimmingCharacters(in: .whitespacesAndNewlines)
+            todo.detail = String(trimmedDetail.prefix(2000))
+        }
+        todo.updatedAt = Date()
+        todos[index] = todo
+        saveSafely()
+        saveState()
+    }
+
+    /// 更新任务详情
+    /// - Parameters:
+    ///   - id: 任务 ID
+    ///   - detail: 新详情
+    func updateDetail(id: UUID, detail: String) {
+        guard let index = todos.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+
+        let trimmedDetail = detail.trimmingCharacters(in: .whitespacesAndNewlines)
+        var todo = todos[index]
+        todo.detail = String(trimmedDetail.prefix(2000))
         todo.updatedAt = Date()
         todos[index] = todo
         saveSafely()

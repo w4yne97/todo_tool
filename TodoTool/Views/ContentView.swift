@@ -41,6 +41,7 @@ struct ContentView: View {
     /// 新任务输入状态
     @State private var isAddingTask = false
     @State private var newTaskTitle = ""
+    @State private var newTaskDescription = ""
     @State private var newTaskPriority: Priority = .none
 
     /// 搜索文本
@@ -384,6 +385,9 @@ struct ContentView: View {
             onUpdate: { newTitle in
                 updateTodoAnimated(id: todo.id, title: newTitle)
             },
+            onUpdateDetail: { detail in
+                updateTodoDetailAnimated(id: todo.id, detail: detail)
+            },
             onDelete: {
                 deleteTodoAnimated(id: todo.id)
             },
@@ -447,6 +451,14 @@ struct ContentView: View {
                 .textFieldStyle(.roundedBorder)
                 .frame(minWidth: 250)
                 .onSubmit(addTaskAnimated)
+
+            TextEditor(text: $newTaskDescription)
+                .frame(minWidth: 250, minHeight: 80, maxHeight: 140)
+                .padding(6)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color.primary.opacity(0.2), lineWidth: 1)
+                )
 
             priorityPicker
 
@@ -619,10 +631,11 @@ struct ContentView: View {
     /// 添加任务（带动画）
     private func addTaskAnimated() {
         let title = newTaskTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        let detail = newTaskDescription.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty else { return }
 
         withAnimation(.easeInOut(duration: 0.25)) {
-            todoStore.add(title: title, priority: newTaskPriority)
+            todoStore.add(title: title, detail: detail, priority: newTaskPriority)
         }
         cancelAddTask()
     }
@@ -630,11 +643,13 @@ struct ContentView: View {
     /// 取消添加
     private func cancelAddTask() {
         newTaskTitle = ""
+        newTaskDescription = ""
         newTaskPriority = .none
         isAddingTask = false
     }
 
     // MARK: - 新建任务优先级选择
+
 
     private var priorityPicker: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -695,6 +710,13 @@ struct ContentView: View {
     private func updateTodoAnimated(id: UUID, title: String) {
         withAnimation(.easeInOut(duration: 0.15)) {
             todoStore.update(id: id, title: title)
+        }
+    }
+
+    /// 更新详情（带动画）
+    private func updateTodoDetailAnimated(id: UUID, detail: String) {
+        withAnimation(.easeInOut(duration: 0.15)) {
+            todoStore.updateDetail(id: id, detail: detail)
         }
     }
 

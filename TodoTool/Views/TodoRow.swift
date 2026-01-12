@@ -14,8 +14,12 @@ struct TodoRow: View {
     /// 更新标题的回调
     var onUpdate: ((String) -> Void)?
 
+    /// 更新详情的回调
+    var onUpdateDetail: ((String) -> Void)?
+ 
     /// 删除任务的回调（当标题清空时触发）
     var onDelete: (() -> Void)?
+
 
     /// 编辑结束回调（用于恢复 List 选中状态）
     var onEditEnd: (() -> Void)?
@@ -37,9 +41,15 @@ struct TodoRow: View {
 
     /// 内部编辑中的标题
     @State private var editingTitle = ""
+    /// 内部编辑中的详情
+    @State private var editingDetail = ""
+    
+    @State private var showDatePicker = false
+    @State private var tempDate = Date()
 
     /// 焦点状态
     @FocusState private var isFocused: Bool
+    @FocusState private var isDetailFocused: Bool
 
     /// 日期格式化器
     private static let timeFormatter: DateFormatter = {
@@ -77,18 +87,29 @@ struct TodoRow: View {
 
             // 任务标题（编辑模式 vs 显示模式）- 带淡入淡出动画
             if isEditingExternally {
-                TextField("任务标题", text: $editingTitle)
-                    .textFieldStyle(.plain)
-                    .focused($isFocused)
-                    .onSubmit(confirmEdit)
-                    .onExitCommand(perform: cancelEdit)
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 2)
-                    .background(
-                        RoundedRectangle(cornerRadius: 4)
-                            .stroke(Color.accentColor, lineWidth: 1)
-                    )
-                    .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                VStack(alignment: .leading, spacing: 8) {
+                    TextField("任务标题", text: $editingTitle)
+                        .textFieldStyle(.plain)
+                        .focused($isFocused)
+                        .onSubmit(confirmEdit)
+                        .onExitCommand(perform: cancelEdit)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 2)
+                        .background(
+                            RoundedRectangle(cornerRadius: 4)
+                                .stroke(Color.accentColor, lineWidth: 1)
+                        )
+                        .transition(.opacity.combined(with: .scale(scale: 0.98)))
+
+                    TextEditor(text: $editingDetail)
+                        .frame(minHeight: 80, maxHeight: 140)
+                        .padding(6)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(Color.accentColor.opacity(0.4), lineWidth: 1)
+                        )
+                        .focused($isDetailFocused)
+                }
             } else {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(todo.title)
@@ -97,6 +118,15 @@ struct TodoRow: View {
                         .lineLimit(2)
                         .transition(.opacity)
                         .animation(.easeInOut(duration: 0.2), value: todo.isCompleted)
+                    
+                    let detailText = todo.detail.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !detailText.isEmpty {
+                        Text(detailText)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .lineLimit(2)
+                            .transition(.opacity)
+                    }
 
                     // 标签徽章
                     if !todo.tagIds.isEmpty {
@@ -107,13 +137,33 @@ struct TodoRow: View {
 
             Spacer()
 
-            // 到期日期显示 - 不同状态不同颜色
-            if let dueDate = todo.dueDate, !todo.isCompleted {
-                dueDateLabel(dueDate)
+            // 到期日期显示/设置 - 不同状态不同颜色
+            if !todo.isCompleted, let onSetDueDate = onSetDueDate {
+                Button {
+                    prepareDatePicker()
+                } label: {
+                    if let dueDate = todo.dueDate {
+                        dueDateLabel(dueDate)
+                    } else {
+                        HStack(spacing: 4) {
+                            Image(systemName: "calendar")
+                                .font(.caption2)
+                            Text("设置到期")
+                                .font(.caption)
+                        }
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.secondary.opacity(0.1))
+                        .cornerRadius(4)
+                    }
+                }
+                .buttonStyle(.plain)
             }
-
+ 
             // 已完成任务显示完成时间 - 带滑入动画
             if todo.isCompleted, let completedAt = todo.completedAt {
+
                 Text(Self.formatDate(completedAt))
                     .font(.caption)
                     .foregroundColor(.secondary)
@@ -135,6 +185,11 @@ struct TodoRow: View {
             dueDateContextMenu
             tagsContextMenu
         }
+        .popover(isPresented: $showDatePicker) {
+            if let onSetDueDate = onSetDueDate {
+                datePickerView(onSetDueDate: onSetDueDate)
+            }
+        }
         .animation(.easeInOut(duration: 0.2), value: todo.priority)
         .padding(.vertical, 4)
         // 让整行都可以响应点击（用于 List 选中），必须在 padding 之后
@@ -146,10 +201,11 @@ struct TodoRow: View {
             }
         }
         // 监听焦点变化，点击外部时确认编辑
-        .onChange(of: isFocused) { _, newValue in
-            if !newValue && isEditingExternally {
-                confirmEdit()
-            }
+        .onChange(of: isFocused) { _, _ in
+            handleFocusChange()
+        }
+        .onChange(of: isDetailFocused) { _, _ in
+            handleFocusChange()
         }
     }
 
@@ -253,30 +309,104 @@ struct TodoRow: View {
         }
     }
 
+    private func handleFocusChange() {
+        if !isFocused && !isDetailFocused && isEditingExternally {
+            confirmEdit()
+        }
+    }
+
+    private func endOfDay(for date: Date) -> Date {
+        let start = Calendar.current.startOfDay(for: date)
+        return Calendar.current.date(byAdding: DateComponents(day: 1, second: -1), to: start) ?? date
+    }
+
+    private func prepareDatePicker() {
+        tempDate = todo.dueDate ?? Date()
+        showDatePicker = true
+    }
+
+    private func setQuickDueDate(daysFromToday: Int, onSetDueDate: @escaping (Date?) -> Void) {
+        let start = Calendar.current.startOfDay(for: Date())
+        let target = Calendar.current.date(byAdding: .day, value: daysFromToday, to: start) ?? start
+        onSetDueDate(endOfDay(for: target))
+    }
+
     /// 到期日期右键菜单
     @ViewBuilder
     private var dueDateContextMenu: some View {
         if let onSetDueDate = onSetDueDate {
             Menu("设置到期日期") {
                 Button("今天") {
-                    onSetDueDate(Calendar.current.startOfDay(for: Date()).addingTimeInterval(86400 - 1))
+                    setQuickDueDate(daysFromToday: 0, onSetDueDate: onSetDueDate)
                 }
                 Button("明天") {
-                    let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date())!
-                    onSetDueDate(Calendar.current.startOfDay(for: tomorrow).addingTimeInterval(86400 - 1))
+                    setQuickDueDate(daysFromToday: 1, onSetDueDate: onSetDueDate)
                 }
                 Button("下周") {
-                    let nextWeek = Calendar.current.date(byAdding: .day, value: 7, to: Date())!
-                    onSetDueDate(Calendar.current.startOfDay(for: nextWeek).addingTimeInterval(86400 - 1))
+                    setQuickDueDate(daysFromToday: 7, onSetDueDate: onSetDueDate)
                 }
                 Divider()
+                Button("选择日期...") {
+                    prepareDatePicker()
+                    showDatePicker = true
+                }
                 if todo.dueDate != nil {
+                    Divider()
                     Button("清除到期日期") {
                         onSetDueDate(nil)
                     }
                 }
             }
         }
+    }
+    
+    private func datePickerView(onSetDueDate: @escaping (Date?) -> Void) -> some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 8) {
+                Button("今天") {
+                    onSetDueDate(endOfDay(for: Date()))
+                    showDatePicker = false
+                }
+                Button("明天") {
+                    let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: Date())) ?? Date()
+                    onSetDueDate(endOfDay(for: tomorrow))
+                    showDatePicker = false
+                }
+                Button("下周") {
+                    let nextWeek = Calendar.current.date(byAdding: .day, value: 7, to: Calendar.current.startOfDay(for: Date())) ?? Date()
+                    onSetDueDate(endOfDay(for: nextWeek))
+                    showDatePicker = false
+                }
+            }
+            .buttonStyle(.bordered)
+
+            DatePicker(
+                "选择日期",
+                selection: $tempDate,
+                displayedComponents: .date
+            )
+            .datePickerStyle(.graphical)
+            .labelsHidden()
+            
+            HStack {
+                Button("清除") {
+                    onSetDueDate(nil)
+                    showDatePicker = false
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(.red)
+                
+                Spacer()
+                
+                Button("确定") {
+                    onSetDueDate(endOfDay(for: tempDate))
+                    showDatePicker = false
+                }
+                .buttonStyle(.borderedProminent)
+            }
+        }
+        .padding()
+        .frame(width: 320)
     }
 
     // MARK: - 标签视图
@@ -334,6 +464,7 @@ struct TodoRow: View {
     /// 开始编辑
     private func startEditing() {
         editingTitle = todo.title
+        editingDetail = todo.detail
         isEditingExternally = true
         // 延迟设置焦点，确保 TextField 已渲染
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
@@ -344,11 +475,17 @@ struct TodoRow: View {
     /// 确认编辑
     private func confirmEdit() {
         let newTitle = editingTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        let newDetail = editingDetail.trimmingCharacters(in: .whitespacesAndNewlines)
         if newTitle.isEmpty {
             // 标题清空，删除任务
             onDelete?()
-        } else if newTitle != todo.title {
-            onUpdate?(newTitle)
+        } else {
+            if newTitle != todo.title {
+                onUpdate?(newTitle)
+            }
+            if newDetail != todo.detail {
+                onUpdateDetail?(newDetail)
+            }
         }
         isEditingExternally = false
         isFocused = false
@@ -359,6 +496,7 @@ struct TodoRow: View {
     /// 取消编辑
     private func cancelEdit() {
         editingTitle = todo.title
+        editingDetail = todo.detail
         isEditingExternally = false
         isFocused = false
         // 通知编辑结束
@@ -377,9 +515,10 @@ struct TodoRow: View {
 
 #Preview("未完成") {
     TodoRow(
-        todo: Todo(title: "买菜"),
+        todo: Todo(title: "买菜", detail: "描述"),
         onToggle: {},
         onUpdate: { print("更新: \($0)") },
+        onUpdateDetail: { print("更新详情: \($0)") },
         onDelete: { print("删除") },
         onEditEnd: { print("编辑结束") },
         onSetPriority: { print("设置优先级: \($0)") },
@@ -393,11 +532,13 @@ struct TodoRow: View {
     TodoRow(
         todo: Todo(
             title: "完成项目报告",
+            detail: "描述",
             isCompleted: true,
             completedAt: Date()
         ),
         onToggle: {},
         onUpdate: nil,
+        onUpdateDetail: nil,
         onDelete: nil,
         onEditEnd: nil,
         onSetPriority: nil,
@@ -411,11 +552,13 @@ struct TodoRow: View {
     TodoRow(
         todo: Todo(
             title: "紧急任务",
+            detail: "需要立即处理",
             priority: .high,
             dueDate: Date().addingTimeInterval(3600) // 1小时后到期
         ),
         onToggle: {},
         onUpdate: nil,
+        onUpdateDetail: nil,
         onDelete: nil,
         onEditEnd: nil,
         onSetPriority: { print("设置优先级: \($0)") },
@@ -429,11 +572,13 @@ struct TodoRow: View {
     TodoRow(
         todo: Todo(
             title: "已过期任务",
+            detail: "需要重新安排",
             priority: .medium,
             dueDate: Date().addingTimeInterval(-86400) // 1天前过期
         ),
         onToggle: {},
         onUpdate: nil,
+        onUpdateDetail: nil,
         onDelete: nil,
         onEditEnd: nil,
         onSetPriority: nil,

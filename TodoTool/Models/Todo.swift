@@ -53,6 +53,7 @@ struct Todo: Codable, Identifiable, Equatable {
     let id: UUID
     /// 任务标题（非空，最大 200 字符）
     var title: String
+    var detail: String
     /// 完成状态
     var isCompleted: Bool
     /// 优先级（默认无优先级）
@@ -74,6 +75,7 @@ struct Todo: Codable, Identifiable, Equatable {
     init(
         id: UUID = UUID(),
         title: String,
+        detail: String = "",
         isCompleted: Bool = false,
         priority: Priority = .none,
         tagIds: [UUID] = [],
@@ -85,6 +87,7 @@ struct Todo: Codable, Identifiable, Equatable {
     ) {
         self.id = id
         self.title = title
+        self.detail = detail
         self.isCompleted = isCompleted
         self.priority = priority
         self.tagIds = tagIds
@@ -97,13 +100,15 @@ struct Todo: Codable, Identifiable, Equatable {
 
     /// 自定义 Codable 实现以支持向后兼容（旧数据无 priority/dueDate/sortOrder/tagIds 字段）
     enum CodingKeys: String, CodingKey {
-        case id, title, isCompleted, priority, tagIds, createdAt, completedAt, dueDate, sortOrder, updatedAt
+        case id, title, detail, isCompleted, priority, tagIds, createdAt, completedAt, dueDate, sortOrder, updatedAt
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(UUID.self, forKey: .id)
         title = try container.decode(String.self, forKey: .title)
+        // 向后兼容：旧数据无 detail 字段时默认为空字符串
+        detail = try container.decodeIfPresent(String.self, forKey: .detail) ?? ""
         isCompleted = try container.decode(Bool.self, forKey: .isCompleted)
         // 向后兼容：旧数据无 priority 字段时默认为 .none
         priority = try container.decodeIfPresent(Priority.self, forKey: .priority) ?? .none
