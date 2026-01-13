@@ -12,6 +12,7 @@ struct TodoRow: View {
     var onUpdateDetail: ((String) -> Void)?
     var onDelete: (() -> Void)?
     var onEditEnd: (() -> Void)?
+    var onSelect: (() -> Void)?
     var onSetPriority: ((Priority) -> Void)?
     var onSetDueDate: ((Date?) -> Void)?
     var availableTags: [Tag] = []
@@ -109,13 +110,17 @@ struct TodoRow: View {
                             .foregroundStyle(todo.isCompleted ? .secondary : .primary)
                             .lineLimit(2)
                             .contentShape(Rectangle())
-                            .onTapGesture {
-                                if !todo.detail.isEmpty {
-                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                        isExpanded.toggle()
+                            .simultaneousGesture(
+                                TapGesture()
+                                    .onEnded {
+                                        onSelect?()
+                                        if !todo.detail.isEmpty {
+                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                                isExpanded.toggle()
+                                            }
+                                        }
                                     }
-                                }
-                            }
+                            )
                         
                         // Tags (Inline)
                         if !todo.tagIds.isEmpty {
@@ -125,32 +130,32 @@ struct TodoRow: View {
 
                     // Description Area
                     if !todo.detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        Button {
+                        HStack(alignment: .top, spacing: 4) {
+                            if isExpanded {
+                                Text(todo.detail)
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            } else {
+                                Text(todo.detail)
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(.tertiary)
+                                    .lineLimit(1)
+                            }
+                            
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundStyle(.tertiary)
+                                .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                                .padding(.top, 4)
+                        }
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            onSelect?()
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                                 isExpanded.toggle()
                             }
-                        } label: {
-                            HStack(alignment: .top, spacing: 4) {
-                                if isExpanded {
-                                    Text(todo.detail)
-                                        .font(.system(size: 13))
-                                        .foregroundStyle(.secondary)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                } else {
-                                    Text(todo.detail)
-                                        .font(.system(size: 13))
-                                        .foregroundStyle(.tertiary)
-                                        .lineLimit(1)
-                                }
-                                
-                                Image(systemName: "chevron.right")
-                                    .font(.system(size: 9, weight: .bold))
-                                    .foregroundStyle(.tertiary)
-                                    .rotationEffect(.degrees(isExpanded ? 90 : 0))
-                                    .padding(.top, 4)
-                            }
                         }
-                        .buttonStyle(.plain)
                     }
                 }
             }

@@ -397,6 +397,9 @@ struct ContentView: View {
                     isListFocused = true
                 }
             },
+            onSelect: {
+                selectedTodoIds = [todo.id]
+            },
             onSetPriority: { priority in
                 setTodoPriorityAnimated(id: todo.id, priority: priority)
             },
