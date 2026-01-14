@@ -61,7 +61,7 @@ final class TodoStore: ObservableObject {
     }
     
     /// 初始化 TodoStore
-    /// - Parameter dataDirectory: 可选的数据目录，默认为 Application Support/TodoTool
+    /// - Parameter dataDirectory: 可选的数据目录，默认为 Application Support/Quadra
     init(dataDirectory: URL? = nil) {
         let directory: URL
         if let dataDirectory = dataDirectory {
@@ -69,7 +69,7 @@ final class TodoStore: ObservableObject {
         } else {
             // 使用 Application Support 目录
             let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-            directory = appSupport.appendingPathComponent("TodoTool", isDirectory: true)
+            directory = appSupport.appendingPathComponent("Quadra", isDirectory: true)
         }
         
         // 确保目录存在

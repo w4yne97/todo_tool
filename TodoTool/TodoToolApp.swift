@@ -269,7 +269,7 @@ struct TodoToolApp: App {
             return
         }
 
-        let dataDirectory = appSupportURL.appendingPathComponent("TodoTool")
+        let dataDirectory = appSupportURL.appendingPathComponent("Quadra")
         let dataURL = dataDirectory.appendingPathComponent("data.json")
 
         // 读取数据文件
@@ -298,7 +298,7 @@ struct TodoToolApp: App {
         // 显示保存对话框
         let savePanel = NSSavePanel()
         savePanel.title = "导出待办事项"
-        savePanel.nameFieldStringValue = "TodoTool_Export_\(dateString()).json"
+        savePanel.nameFieldStringValue = "Quadra_Export_\(dateString()).json"
         savePanel.allowedContentTypes = [.json]
         savePanel.canCreateDirectories = true
 
