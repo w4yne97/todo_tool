@@ -60,6 +60,9 @@ struct ContentView: View {
     @State private var newTagName = ""
     @State private var newTagColor: TagColor = .blue
 
+    /// 已完成分组折叠状态（持久化）
+    @AppStorage("com.todotool.completedCollapsed") private var isCompletedCollapsed = false
+
     /// List 焦点状态
     @FocusState private var isListFocused: Bool
 
@@ -351,22 +354,37 @@ struct ContentView: View {
                 }
             }
 
-            // 已完成分组
+            // 已完成分组（可折叠）
             if !completedTodos.isEmpty {
                 Section {
-                    ForEach(completedTodos) { todo in
-                        todoRow(for: todo)
-                    }
-                    .onDelete { indexSet in
-                        deleteTodosAnimated(from: completedTodos, at: indexSet)
-                    }
-                    .onMove { source, destination in
-                        moveTodosAnimated(from: source, to: destination, inSection: completedTodos)
+                    if !isCompletedCollapsed {
+                        ForEach(completedTodos) { todo in
+                            todoRow(for: todo)
+                        }
+                        .onDelete { indexSet in
+                            deleteTodosAnimated(from: completedTodos, at: indexSet)
+                        }
+                        .onMove { source, destination in
+                            moveTodosAnimated(from: source, to: destination, inSection: completedTodos)
+                        }
                     }
                 } header: {
-                    Text("已完成 (\(completedTodos.count))")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            isCompletedCollapsed.toggle()
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "chevron.right")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                                .rotationEffect(.degrees(isCompletedCollapsed ? 0 : 90))
+                            Text("已完成 (\(completedTodos.count))")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         }

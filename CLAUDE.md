@@ -86,6 +86,7 @@ Quadra/
 - [x] 多选操作（批量删除、切换状态）
 - [x] 右键菜单（编辑、优先级、到期日期、标签）
 - [x] 底部统计栏（待办数、已完成数、今日完成）
+- [x] 已完成分组折叠/展开（点击 header 切换，状态持久化）
 
 ### 四象限分类
 - [x] 艾森豪威尔矩阵视图（2x2 网格布局）
@@ -179,6 +180,12 @@ data.json.tmp      # 写入中的临时文件
 4. **单一数据源**：TodoStore 持有唯一真相
 5. **边界清晰**：View 只负责展示，Store 只负责逻辑
 6. **手势谨慎**：避免使用会干扰 List 选中的手势（如双击）
+7. **版本发布**：每次功能变更完成后，必须执行构建并部署到 `/Applications/Quadra.app`，流程如下：
+   ```bash
+   xcodebuild -scheme TodoTool -configuration Release build
+   rm -rf /Applications/Quadra.app
+   cp -R ~/Library/Developer/Xcode/DerivedData/TodoTool-*/Build/Products/Release/Quadra.app /Applications/
+   ```
 
 ---
 

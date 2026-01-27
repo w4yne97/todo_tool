@@ -951,4 +951,27 @@ var filteredTodos: [Todo] {
 
 ---
 
-*计划版本: v2.4 | 更新时间: 2026-01-11*
+---
+
+## Phase 10: 已完成分组折叠功能
+
+### Step 10.1 已完成分组折叠/展开
+
+**指令**：
+1. 在 `ContentView` 中添加 `@AppStorage("com.todotool.completedCollapsed")` 属性
+2. 将已完成 Section 的纯文本 header 替换为可点击的 Button
+3. 使用 `chevron.right` + `rotationEffect` 提供折叠/展开视觉指示
+4. 用 `if !isCompletedCollapsed` 条件渲染已完成任务列表
+
+**验证**：
+- [x] 已完成分组 header 显示 chevron 图标
+- [x] 点击 header 可折叠/展开
+- [x] chevron 旋转动画流畅
+- [x] 折叠状态下 header 仍显示已完成计数
+- [x] 退出并重启 app 后折叠状态保持
+- [x] 搜索/过滤模式下折叠行为正常
+- [x] 无已完成项时不显示已完成 section
+
+---
+
+*计划版本: v2.5 | 更新时间: 2026-01-27*

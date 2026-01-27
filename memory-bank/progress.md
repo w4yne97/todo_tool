@@ -1105,3 +1105,48 @@ TodoToolTests/TodoModelTests.swift
 
 *更新时间: 2026-01-12*
 
+---
+
+## Phase 10: 已完成分组折叠功能 ✅
+
+**完成时间**: 2026-01-27
+
+### 功能概述
+
+已完成任务数量较多时占据过多列表空间，影响用户对待办任务的聚焦。在「已完成」分组 header 添加折叠/展开功能。
+
+### 完成内容
+
+| 功能 | 实现方式 |
+|------|----------|
+| 折叠状态持久化 | `@AppStorage("com.todotool.completedCollapsed")` |
+| 可点击 header | `Button` + `buttonStyle(.plain)` 替换纯文本 header |
+| 视觉指示 | `chevron.right` + `rotationEffect` (0° 折叠 / 90° 展开) |
+| 动画过渡 | `withAnimation(.easeInOut(duration: 0.2))` |
+| 条件渲染 | `if !isCompletedCollapsed` 包裹 `ForEach` 内容 |
+
+### 修改的文件
+
+```
+TodoTool/Views/ContentView.swift   # 新增 @AppStorage 属性 + 修改已完成 Section
+```
+
+### 验证结果
+
+- [x] 已完成分组 header 显示 chevron 箭头图标
+- [x] 点击 header 可折叠/展开已完成任务
+- [x] chevron 旋转动画流畅
+- [x] 折叠状态下 header 仍显示已完成计数
+- [x] 退出并重启 app 后折叠状态保持
+- [x] 无已完成项时不显示已完成 section
+
+### 技术决策记录
+
+1. **@AppStorage 持久化**：与 Phase 7.1 外观偏好一致的持久化模式，轻量 UI 偏好使用 UserDefaults
+2. **条件渲染而非隐藏**：`if !isCompletedCollapsed` 完全不渲染已完成项，比 `.opacity(0)` 更高效
+3. **chevron.right + rotationEffect**：符合 macOS 原生 disclosure 语义（0° = 折叠，90° = 展开）
+
+---
+
+*更新时间: 2026-01-27*
+
